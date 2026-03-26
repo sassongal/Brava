@@ -12,10 +12,18 @@ export function KeyboardLock() {
     // Check initial status
     invoke<boolean>("get_keyboard_lock_status").then(setLocked);
 
+    // Poll for status changes (since Rust command doesn't emit events)
+    const interval = setInterval(() => {
+      invoke<boolean>("get_keyboard_lock_status").then(setLocked);
+    }, 500);
+
     const unsub = listen("keyboard-lock-changed", (event) => {
       setLocked(event.payload as boolean);
     });
-    return () => { unsub.then((fn) => fn()); };
+    return () => {
+      clearInterval(interval);
+      unsub.then((fn) => fn());
+    };
   }, []);
 
   useEffect(() => {
