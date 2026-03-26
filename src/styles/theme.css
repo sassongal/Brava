@@ -1,97 +1,130 @@
-/* Brava Design System - CSS Variables */
+/* ============================================================
+   BRAVA DESIGN SYSTEM — Based on Brand Guidelines v1.0
+   Colors: Crimson, Warm Beige, Cream, Slate Teal, Ink
+   Fonts: Playfair Display (display), DM Sans (body), Alef (Hebrew)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&family=Alef:wght@400;700&display=swap');
+
 :root {
-  /* Colors - Light Theme */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f5f5f7;
-  --bg-tertiary: #e8e8ed;
-  --bg-hover: #f0f0f5;
-  --bg-active: #e5e5ea;
+  /* Brand Colors */
+  --brava-crimson: #BF4646;
+  --brava-crimson-dark: #9A3030;
+  --brava-crimson-light: #D96B6B;
+  --brava-crimson-pale: rgba(191, 70, 70, 0.08);
+  --brava-beige: #EDDCC6;
+  --brava-beige-dark: #D9C4A8;
+  --brava-beige-light: #F5EDE0;
+  --brava-cream: #FFF4EA;
+  --brava-cream-dark: #F5E8D6;
+  --brava-teal: #7EACB5;
+  --brava-teal-dark: #5A8E99;
+  --brava-teal-light: #A4C8CF;
+  --brava-teal-pale: rgba(126, 172, 181, 0.15);
+  --brava-ink: #2C1E1E;
+  --brava-ink-mid: #5C4040;
+  --brava-ink-soft: #9A7A7A;
+  --brava-ink-muted: rgba(44, 30, 30, 0.35);
 
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-tertiary: #aeaeb2;
-  --text-inverse: #ffffff;
+  /* Semantic Mapping */
+  --bg-primary: var(--brava-cream);
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: var(--brava-beige-light);
+  --bg-hover: var(--brava-cream-dark);
+  --bg-active: var(--brava-beige);
 
-  --accent: #6366f1;
-  --accent-hover: #4f46e5;
-  --accent-light: #e0e7ff;
+  --text-primary: var(--brava-ink);
+  --text-secondary: var(--brava-ink-mid);
+  --text-tertiary: var(--brava-ink-soft);
+  --text-inverse: #FFFFFF;
 
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  --info: #3b82f6;
+  --accent: var(--brava-crimson);
+  --accent-hover: var(--brava-crimson-dark);
+  --accent-light: var(--brava-crimson-pale);
 
-  --border: #d1d1d6;
-  --border-light: #e5e5ea;
+  --secondary: var(--brava-teal);
+  --secondary-hover: var(--brava-teal-dark);
+  --secondary-light: var(--brava-teal-pale);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --success: #3D9970;
+  --warning: #D4940A;
+  --error: #C0392B;
+  --info: var(--brava-teal);
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  --border: var(--brava-beige);
+  --border-light: var(--brava-beige-light);
+
+  --shadow-sm: 0 1px 3px rgba(44,30,30,0.08), 0 1px 2px rgba(44,30,30,0.05);
+  --shadow-md: 0 4px 12px rgba(44,30,30,0.10), 0 2px 4px rgba(44,30,30,0.06);
+  --shadow-lg: 0 10px 30px rgba(44,30,30,0.12), 0 4px 8px rgba(44,30,30,0.06);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
   --radius-full: 9999px;
 
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-sans: 'DM Sans', 'Inter', system-ui, sans-serif;
+  --font-hebrew: 'Alef', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
 
-  --transition: 150ms ease;
+  --transition: 0.2s ease;
 
   /* Category colors */
-  --cat-text: #6e6e73;
-  --cat-url: #3b82f6;
-  --cat-email: #8b5cf6;
-  --cat-phone: #22c55e;
-  --cat-code: #f59e0b;
-  --cat-color: #ec4899;
-  --cat-path: #6366f1;
-  --cat-number: #14b8a6;
-  --cat-image: #f97316;
+  --cat-text: var(--brava-ink-soft);
+  --cat-url: var(--brava-teal-dark);
+  --cat-email: #8E6BBF;
+  --cat-phone: #3D9970;
+  --cat-code: #D4940A;
+  --cat-color: var(--brava-crimson-light);
+  --cat-path: var(--brava-teal);
+  --cat-number: #5A8E99;
+  --cat-image: var(--brava-crimson);
 }
 
 /* Dark Theme */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg-primary: #1c1c1e;
-    --bg-secondary: #2c2c2e;
-    --bg-tertiary: #3a3a3c;
-    --bg-hover: #38383a;
-    --bg-active: #48484a;
+  :root:not([data-theme="light"]) {
+    --bg-primary: #1C1212;
+    --bg-secondary: #251818;
+    --bg-tertiary: #322222;
+    --bg-hover: #3A2828;
+    --bg-active: #483333;
 
-    --text-primary: #f5f5f7;
-    --text-secondary: #a1a1a6;
-    --text-tertiary: #6e6e73;
-    --text-inverse: #1d1d1f;
+    --text-primary: #F5E8D6;
+    --text-secondary: #B8998E;
+    --text-tertiary: #9A7A7A;
+    --text-inverse: #1C1212;
 
-    --accent: #818cf8;
-    --accent-hover: #6366f1;
-    --accent-light: #312e81;
+    --accent: #D96B6B;
+    --accent-hover: #BF4646;
+    --accent-light: rgba(217, 107, 107, 0.12);
 
-    --border: #48484a;
-    --border-light: #3a3a3c;
+    --border: rgba(237, 220, 198, 0.15);
+    --border-light: rgba(237, 220, 198, 0.08);
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --shadow-lg: 0 10px 30px rgba(0,0,0,0.5);
   }
 }
 
 [data-theme="dark"] {
-  --bg-primary: #1c1c1e;
-  --bg-secondary: #2c2c2e;
-  --bg-tertiary: #3a3a3c;
-  --bg-hover: #38383a;
-  --bg-active: #48484a;
-  --text-primary: #f5f5f7;
-  --text-secondary: #a1a1a6;
-  --text-tertiary: #6e6e73;
-  --text-inverse: #1d1d1f;
-  --accent: #818cf8;
-  --accent-hover: #6366f1;
-  --accent-light: #312e81;
-  --border: #48484a;
-  --border-light: #3a3a3c;
+  --bg-primary: #1C1212;
+  --bg-secondary: #251818;
+  --bg-tertiary: #322222;
+  --bg-hover: #3A2828;
+  --bg-active: #483333;
+  --text-primary: #F5E8D6;
+  --text-secondary: #B8998E;
+  --text-tertiary: #9A7A7A;
+  --text-inverse: #1C1212;
+  --accent: #D96B6B;
+  --accent-hover: #BF4646;
+  --accent-light: rgba(217, 107, 107, 0.12);
+  --border: rgba(237, 220, 198, 0.15);
+  --border-light: rgba(237, 220, 198, 0.08);
 }
 
 /* Base styles */
@@ -105,17 +138,30 @@ body {
   font-family: var(--font-sans);
   background: var(--bg-primary);
   color: var(--text-primary);
-  line-height: 1.5;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  font-weight: 400;
+  font-size: 14px;
+}
+
+/* RTL support for Hebrew */
+[dir="rtl"] body,
+[lang="he"] body {
+  font-family: var(--font-hebrew), var(--font-sans);
+}
+
+[dir="rtl"] .search-bar,
+[dir="rtl"] .section-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .card {
+  text-align: right;
 }
 
 /* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: var(--radius-full);
@@ -128,4 +174,15 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Display headings use Playfair Display */
+h1, h2, .section-title {
+  font-family: var(--font-display);
+}
+
+[dir="rtl"] h1,
+[dir="rtl"] h2,
+[dir="rtl"] .section-title {
+  font-family: var(--font-hebrew), var(--font-display);
 }

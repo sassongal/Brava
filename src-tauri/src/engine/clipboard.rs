@@ -56,7 +56,7 @@ impl ClipboardItem {
         }
     }
 
-    fn compute_hash(content: &str) -> String {
+    pub fn compute_hash(content: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(content.as_bytes());
         hex::encode(hasher.finalize())
@@ -128,6 +128,9 @@ pub struct ClipboardManager {
     items: Mutex<Vec<ClipboardItem>>,
     max_items: usize,
     last_hash: Mutex<String>,
+    /// Hash of content we wrote to the system clipboard ourselves.
+    /// The monitor thread checks this to avoid re-capturing our own writes.
+    skip_hash: Mutex<Option<String>>,
 }
 
 impl ClipboardManager {
@@ -136,6 +139,25 @@ impl ClipboardManager {
             items: Mutex::new(Vec::new()),
             max_items,
             last_hash: Mutex::new(String::new()),
+            skip_hash: Mutex::new(None),
+        }
+    }
+
+    /// Mark content we're about to write to the system clipboard so the monitor skips it.
+    pub fn set_skip(&self, content: &str) {
+        let hash = ClipboardItem::compute_hash(content);
+        *self.skip_hash.lock().unwrap() = Some(hash);
+    }
+
+    /// Check if content should be skipped (was written by us), and clear the flag.
+    pub fn should_skip(&self, content: &str) -> bool {
+        let hash = ClipboardItem::compute_hash(content);
+        let mut skip = self.skip_hash.lock().unwrap();
+        if skip.as_deref() == Some(&hash) {
+            *skip = None;
+            true
+        } else {
+            false
         }
     }
 

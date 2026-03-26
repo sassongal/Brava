@@ -1,4 +1,5 @@
 use crate::engine::snippets::{Snippet, SnippetEngine};
+use crate::DatabaseState;
 use tauri::State;
 use std::sync::Mutex;
 
@@ -16,6 +17,7 @@ pub fn add_snippet(
     content: &str,
     description: Option<&str>,
     state: State<'_, SnippetState>,
+    db: State<'_, DatabaseState>,
 ) -> Snippet {
     let snippet = Snippet::new(
         trigger.to_string(),
@@ -23,6 +25,9 @@ pub fn add_snippet(
         description.map(|s| s.to_string()),
     );
     let result = snippet.clone();
+    if let Err(e) = db.0.save_snippet(&result) {
+        log::error!("Failed to persist snippet: {}", e);
+    }
     let mut engine = state.0.lock().unwrap();
     engine.add(snippet);
     result
@@ -35,9 +40,10 @@ pub fn update_snippet(
     content: Option<&str>,
     description: Option<Option<&str>>,
     state: State<'_, SnippetState>,
+    db: State<'_, DatabaseState>,
 ) -> Result<Snippet, String> {
     let mut engine = state.0.lock().map_err(|e| e.to_string())?;
-    engine
+    let updated = engine
         .update(
             id,
             trigger.map(|s| s.to_string()),
@@ -45,13 +51,27 @@ pub fn update_snippet(
             description.map(|opt| opt.map(|s| s.to_string())),
         )
         .cloned()
-        .ok_or_else(|| "Snippet not found".to_string())
+        .ok_or_else(|| "Snippet not found".to_string())?;
+    if let Err(e) = db.0.save_snippet(&updated) {
+        log::error!("Failed to persist snippet update: {}", e);
+    }
+    Ok(updated)
 }
 
 #[tauri::command]
-pub fn delete_snippet(id: &str, state: State<'_, SnippetState>) -> bool {
+pub fn delete_snippet(
+    id: &str,
+    state: State<'_, SnippetState>,
+    db: State<'_, DatabaseState>,
+) -> bool {
     let mut engine = state.0.lock().unwrap();
-    engine.remove(id).is_some()
+    let removed = engine.remove(id).is_some();
+    if removed {
+        if let Err(e) = db.0.delete_snippet(id) {
+            log::error!("Failed to delete snippet from database: {}", e);
+        }
+    }
+    removed
 }
 
 #[tauri::command]

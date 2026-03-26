@@ -114,17 +114,27 @@ pub fn set_ai_provider(provider: &str, state: State<'_, AIState>) -> Result<(), 
 
 #[tauri::command]
 pub fn set_api_key(provider: &str, key: &str, state: State<'_, AIState>) -> Result<(), String> {
+    // Save to in-memory provider
     match provider {
         "gemini" => state.gemini.lock().map_err(|e| e.to_string())?.set_api_key(key.to_string()),
         "openai" => state.openai.lock().map_err(|e| e.to_string())?.set_api_key(key.to_string()),
         "claude" => state.claude.lock().map_err(|e| e.to_string())?.set_api_key(key.to_string()),
-        "openrouter" => state
-            .openrouter
-            .lock()
-            .map_err(|e| e.to_string())?
-            .set_api_key(key.to_string()),
+        "openrouter" => state.openrouter.lock().map_err(|e| e.to_string())?.set_api_key(key.to_string()),
         _ => return Err(format!("Cannot set API key for: {}", provider)),
     }
+
+    // Persist to OS keyring
+    match keyring::Entry::new("brava", &format!("api_key_{}", provider)) {
+        Ok(entry) => {
+            if let Err(e) = entry.set_password(key) {
+                log::error!("Failed to save API key to keyring: {}", e);
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to create keyring entry: {}", e);
+        }
+    }
+
     Ok(())
 }
 

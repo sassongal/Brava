@@ -7,10 +7,13 @@ import {
   writeSystemClipboard,
   type AIResponse,
 } from "../lib/tauri";
+import { showToast } from "./Toast";
+import { useLocale } from "../lib/i18n";
 
 type AITab = "enhance" | "translate" | "freeform";
 
 export function AITools() {
+  const [, t] = useLocale();
   const [activeTab, setActiveTab] = useState<AITab>("enhance");
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<AIResponse | null>(null);
@@ -30,6 +33,7 @@ export function AITools() {
       setOutput(result);
     } catch (err) {
       setError(String(err));
+      showToast("AI request failed: " + String(err), "error");
     }
     setLoading(false);
   };
@@ -43,6 +47,7 @@ export function AITools() {
       setOutput(result);
     } catch (err) {
       setError(String(err));
+      showToast("AI request failed: " + String(err), "error");
     }
     setLoading(false);
   };
@@ -56,6 +61,7 @@ export function AITools() {
       setOutput(result);
     } catch (err) {
       setError(String(err));
+      showToast("AI request failed: " + String(err), "error");
     }
     setLoading(false);
   };
@@ -73,7 +79,7 @@ export function AITools() {
       const text = await readSystemClipboard();
       setInput(text);
     } catch (err) {
-      console.error("Failed to read clipboard:", err);
+      showToast("Failed to read clipboard: " + String(err), "error");
     }
   };
 
@@ -81,8 +87,9 @@ export function AITools() {
     if (!output) return;
     try {
       await writeSystemClipboard(output.content);
+      showToast("Result copied to clipboard", "success");
     } catch (err) {
-      console.error("Failed to copy:", err);
+      showToast("Failed to copy: " + String(err), "error");
     }
   };
 
@@ -95,15 +102,15 @@ export function AITools() {
   return (
     <div>
       <div className="section-header">
-        <h2 className="section-title">AI Tools</h2>
+        <h2 className="section-title">{t("ai.title")}</h2>
       </div>
 
       {/* Tab bar */}
       <div style={{ display: "flex", gap: "4px", marginBottom: "16px" }}>
         {([
-          { id: "enhance" as AITab, label: "Enhance Prompt", icon: "\u{2728}" },
-          { id: "translate" as AITab, label: "Translate", icon: "\u{1F310}" },
-          { id: "freeform" as AITab, label: "Ask AI", icon: "\u{1F4AC}" },
+          { id: "enhance" as AITab, label: t("ai.enhance"), icon: "\u{2728}" },
+          { id: "translate" as AITab, label: t("ai.translate"), icon: "\u{1F310}" },
+          { id: "freeform" as AITab, label: t("ai.ask"), icon: "\u{1F4AC}" },
         ]).map((tab) => (
           <button
             key={tab.id}
@@ -134,10 +141,10 @@ export function AITools() {
           className="input"
           placeholder={
             activeTab === "enhance"
-              ? "Paste your prompt here to enhance it..."
+              ? t("ai.enhancePlaceholder")
               : activeTab === "translate"
-              ? "Enter text to translate..."
-              : "Ask anything..."
+              ? t("ai.translatePlaceholder")
+              : t("ai.askPlaceholder")
           }
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -152,7 +159,7 @@ export function AITools() {
           onClick={pasteFromClipboard}
           title="Paste from clipboard"
         >
-          {"\u{1F4CB}"} Paste
+          {"\u{1F4CB}"} {t("conv.paste")}
         </button>
       </div>
 
@@ -160,15 +167,15 @@ export function AITools() {
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
         <button className="btn btn-primary" onClick={handleSubmit} disabled={loading || !input.trim()}>
           {loading ? (
-            <><div className="spinner" style={{ width: "14px", height: "14px" }} /> Processing...</>
+            <><div className="spinner" style={{ width: "14px", height: "14px" }} /> {t("ai.processing")}</>
           ) : (
-            activeTab === "enhance" ? "\u{2728} Enhance" :
-            activeTab === "translate" ? "\u{1F310} Translate" :
-            "\u{1F4AC} Ask"
+            activeTab === "enhance" ? `\u{2728} ${t("ai.enhance")}` :
+            activeTab === "translate" ? `\u{1F310} ${t("ai.translate")}` :
+            `\u{1F4AC} ${t("ai.ask")}`
           )}
         </button>
         <button className="btn" onClick={() => { setInput(""); setOutput(null); setError(null); }}>
-          Clear
+          {t("conv.clear")}
         </button>
       </div>
 
@@ -188,7 +195,7 @@ export function AITools() {
               {output.tokens_used && ` (${output.tokens_used} tokens)`}
             </span>
             <button className="btn btn-sm" onClick={copyResult}>
-              {"\u{1F4CB}"} Copy Result
+              {"\u{1F4CB}"} {t("ai.copyResult")}
             </button>
           </div>
           <pre style={{

@@ -13,6 +13,9 @@ export const detectLayout = (text: string) =>
 export const getLayouts = () =>
   invoke<LayoutInfo[]>("get_layouts");
 
+export const convertClipboardText = () =>
+  invoke<string>("convert_clipboard_text");
+
 // Clipboard commands
 export const getClipboardItems = (query?: string, category?: string, limit?: number, offset?: number) =>
   invoke<ClipboardItem[]>("get_clipboard_items", { query, category, limit, offset });
@@ -88,6 +91,30 @@ export const getAppVersion = () =>
 
 export const getAppInfo = () =>
   invoke<AppInfo>("get_app_info");
+
+// Settings persistence commands
+export const saveSettingsToDb = () =>
+  invoke<void>("save_settings_to_db");
+
+export const exportSettings = () =>
+  invoke<string>("export_settings");
+
+export const importSettings = (json: string) =>
+  invoke<void>("import_settings", { json });
+
+// Caffeine commands
+export const toggleCaffeine = () =>
+  invoke<boolean>("toggle_caffeine");
+
+export const getCaffeineStatus = () =>
+  invoke<boolean>("get_caffeine_status");
+
+// Keyboard lock commands
+export const toggleKeyboardLock = () =>
+  invoke<boolean>("toggle_keyboard_lock");
+
+export const getKeyboardLockStatus = () =>
+  invoke<boolean>("get_keyboard_lock_status");
 
 // Types
 export interface ConversionResult {

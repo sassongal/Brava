@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { listen } from "@tauri-apps/api/event";
 import {
   getClipboardItems,
   deleteClipboardItem,
@@ -8,6 +9,8 @@ import {
   writeSystemClipboard,
   type ClipboardItem,
 } from "../lib/tauri";
+import { showToast } from "./Toast";
+import { useLocale } from "../lib/i18n";
 
 const CATEGORY_ICONS: Record<string, string> = {
   text: "\u{1F4DD}",
@@ -22,6 +25,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export function ClipboardHistory() {
+  const [, t] = useLocale();
   const [items, setItems] = useState<ClipboardItem[]>([]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
@@ -45,15 +49,24 @@ export function ClipboardHistory() {
 
   useEffect(() => {
     loadItems();
-    const interval = setInterval(loadItems, 2000);
-    return () => clearInterval(interval);
+    // Poll as fallback every 5 seconds (reduced from 2s since we have events now)
+    const interval = setInterval(loadItems, 5000);
+    // Listen for real-time clipboard changes from the Rust backend
+    const unlisten = listen<ClipboardItem>("clipboard-changed", () => {
+      loadItems();
+    });
+    return () => {
+      clearInterval(interval);
+      unlisten.then((fn) => fn());
+    };
   }, [loadItems]);
 
   const handleCopy = async (item: ClipboardItem) => {
     try {
       await writeSystemClipboard(item.content);
+      showToast("Copied to clipboard", "success");
     } catch (err) {
-      console.error("Failed to copy:", err);
+      showToast("Failed to copy: " + String(err), "error");
     }
   };
 
@@ -82,34 +95,34 @@ export function ClipboardHistory() {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1) return t("clip.justNow");
+    if (mins < 60) return `${mins}${t("clip.mAgo")}`;
     const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
+    if (hours < 24) return `${hours}${t("clip.hAgo")}`;
     return date.toLocaleDateString();
   };
 
   return (
     <div>
       <div className="section-header">
-        <h2 className="section-title">Clipboard History</h2>
+        <h2 className="section-title">{t("clip.title")}</h2>
         <div style={{ display: "flex", gap: "8px" }}>
           <select
             className="select"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
-            <option value="">All Categories</option>
-            <option value="text">Text</option>
-            <option value="url">URLs</option>
-            <option value="email">Emails</option>
-            <option value="phone">Phone Numbers</option>
-            <option value="code">Code</option>
-            <option value="color">Colors</option>
-            <option value="path">File Paths</option>
+            <option value="">{t("clip.allCats")}</option>
+            <option value="text">{t("clip.cat.text")}</option>
+            <option value="url">{t("clip.cat.url")}</option>
+            <option value="email">{t("clip.cat.email")}</option>
+            <option value="phone">{t("clip.cat.phone")}</option>
+            <option value="code">{t("clip.cat.code")}</option>
+            <option value="color">{t("clip.cat.color")}</option>
+            <option value="path">{t("clip.cat.path")}</option>
           </select>
           <button className="btn btn-danger btn-sm" onClick={handleClear}>
-            Clear All
+            {t("clip.clearAll")}
           </button>
         </div>
       </div>
@@ -118,7 +131,7 @@ export function ClipboardHistory() {
         <span>{"\u{1F50D}"}</span>
         <input
           type="text"
-          placeholder="Search clipboard history..."
+          placeholder={t("clip.search")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -136,9 +149,9 @@ export function ClipboardHistory() {
       ) : items.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">{"\u{1F4CB}"}</div>
-          <p>No clipboard items yet</p>
+          <p>{t("clip.empty")}</p>
           <p style={{ fontSize: "13px", marginTop: "4px" }}>
-            Copy something to see it here
+            {t("clip.empty.hint")}
           </p>
         </div>
       ) : (

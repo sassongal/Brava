@@ -10,8 +10,10 @@ import {
   type ConversionResult,
   type DetectionResult,
 } from "../lib/tauri";
+import { useLocale } from "../lib/i18n";
 
 export function LayoutConverter() {
+  const [, t] = useLocale();
   const [input, setInput] = useState("");
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
@@ -63,11 +65,11 @@ export function LayoutConverter() {
   return (
     <div>
       <div className="section-header">
-        <h2 className="section-title">Layout Converter</h2>
+        <h2 className="section-title">{t("conv.title")}</h2>
       </div>
 
       <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "16px" }}>
-        Typed in the wrong keyboard layout? Paste or type your text below to convert it.
+        {t("conv.desc")}
       </p>
 
       {/* Layout selectors */}
@@ -77,7 +79,7 @@ export function LayoutConverter() {
           value={sourceLayout}
           onChange={(e) => setSourceLayout(e.target.value)}
         >
-          <option value="auto">Auto-detect</option>
+          <option value="auto">{t("conv.auto")}</option>
           {layouts.map((l) => (
             <option key={l.code} value={l.code}>{l.name} ({l.code})</option>
           ))}
@@ -103,7 +105,7 @@ export function LayoutConverter() {
           marginBottom: "12px",
           fontSize: "13px",
         }}>
-          Detected: <strong>{detection.detected_name}</strong> ({(detection.confidence * 100).toFixed(0)}% confidence)
+          {t("conv.detected")}: <strong>{detection.detected_name}</strong> ({(detection.confidence * 100).toFixed(0)}% {t("conv.confidence")})
         </div>
       )}
 
@@ -111,7 +113,7 @@ export function LayoutConverter() {
       <div style={{ position: "relative", marginBottom: "12px" }}>
         <textarea
           className="input"
-          placeholder="Type or paste text in the wrong layout..."
+          placeholder={t("conv.placeholder")}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           rows={4}
@@ -124,16 +126,16 @@ export function LayoutConverter() {
           style={{ position: "absolute", top: "8px", right: "8px" }}
           onClick={pasteFromClipboard}
         >
-          {"\u{1F4CB}"} Paste
+          {"\u{1F4CB}"} {t("conv.paste")}
         </button>
       </div>
 
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
         <button className="btn btn-primary" onClick={handleConvert} disabled={!input.trim()}>
-          {"\u{1F504}"} Convert
+          {"\u{1F504}"} {t("conv.convert")}
         </button>
         <button className="btn" onClick={() => { setInput(""); setResult(null); setDetection(null); }}>
-          Clear
+          {t("conv.clear")}
         </button>
       </div>
 
@@ -145,7 +147,7 @@ export function LayoutConverter() {
               {result.source_layout} {"\u{2192}"} {result.target_layout}
             </span>
             <button className="btn btn-sm" onClick={copyResult}>
-              {"\u{1F4CB}"} Copy
+              {"\u{1F4CB}"} {t("conv.copy")}
             </button>
           </div>
           <p style={{

@@ -1,4 +1,5 @@
 use crate::engine::clipboard::{ClipboardCategory, ClipboardItem, ClipboardManager};
+use crate::DatabaseState;
 use tauri::State;
 use std::sync::Arc;
 
@@ -17,8 +18,18 @@ pub fn get_clipboard_items(
 }
 
 #[tauri::command]
-pub fn add_clipboard_item(content: &str, state: State<'_, ClipboardState>) -> Option<ClipboardItem> {
-    state.0.add(content.to_string())
+pub fn add_clipboard_item(
+    content: &str,
+    state: State<'_, ClipboardState>,
+    db: State<'_, DatabaseState>,
+) -> Option<ClipboardItem> {
+    let item = state.0.add(content.to_string());
+    if let Some(ref item) = item {
+        if let Err(e) = db.0.save_clipboard_item(item) {
+            log::error!("Failed to persist clipboard item: {}", e);
+        }
+    }
+    item
 }
 
 #[tauri::command]
@@ -32,13 +43,29 @@ pub fn toggle_clipboard_favorite(id: &str, state: State<'_, ClipboardState>) -> 
 }
 
 #[tauri::command]
-pub fn delete_clipboard_item(id: &str, state: State<'_, ClipboardState>) -> bool {
-    state.0.delete(id)
+pub fn delete_clipboard_item(
+    id: &str,
+    state: State<'_, ClipboardState>,
+    db: State<'_, DatabaseState>,
+) -> bool {
+    let deleted = state.0.delete(id);
+    if deleted {
+        if let Err(e) = db.0.delete_clipboard_item(id) {
+            log::error!("Failed to delete clipboard item from database: {}", e);
+        }
+    }
+    deleted
 }
 
 #[tauri::command]
-pub fn clear_clipboard_history(state: State<'_, ClipboardState>) {
+pub fn clear_clipboard_history(
+    state: State<'_, ClipboardState>,
+    db: State<'_, DatabaseState>,
+) {
     state.0.clear();
+    if let Err(e) = db.0.clear_clipboard_history() {
+        log::error!("Failed to clear clipboard history in database: {}", e);
+    }
 }
 
 #[tauri::command]
@@ -55,9 +82,10 @@ pub fn read_system_clipboard() -> Result<String, String> {
         .map_err(|e| format!("Failed to read clipboard: {}", e))
 }
 
-/// Write text to system clipboard
+/// Write text to system clipboard, marking it so the monitor skips it
 #[tauri::command]
-pub fn write_system_clipboard(text: &str) -> Result<(), String> {
+pub fn write_system_clipboard(text: &str, state: State<'_, ClipboardState>) -> Result<(), String> {
+    state.0.set_skip(text);
     let mut clipboard = arboard::Clipboard::new()
         .map_err(|e| format!("Failed to access clipboard: {}", e))?;
     clipboard.set_text(text)

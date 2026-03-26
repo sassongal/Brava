@@ -7,8 +7,11 @@ import {
   expandSnippetVariables,
   type Snippet,
 } from "../lib/tauri";
+import { showToast } from "./Toast";
+import { useLocale } from "../lib/i18n";
 
 export function SnippetManager() {
+  const [, t] = useLocale();
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -16,6 +19,7 @@ export function SnippetManager() {
   const [content, setContent] = useState("");
   const [description, setDescription] = useState("");
   const [preview, setPreview] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     loadSnippets();
@@ -48,10 +52,12 @@ export function SnippetManager() {
       } else {
         await addSnippet(trigger, content, description || undefined);
       }
+      showToast(editingId ? "Snippet updated" : "Snippet created", "success");
       resetForm();
       loadSnippets();
     } catch (err) {
       console.error("Failed to save snippet:", err);
+      showToast("Failed to save snippet: " + String(err), "error");
     }
   };
 
@@ -67,6 +73,7 @@ export function SnippetManager() {
   const handleDelete = async (id: string) => {
     await deleteSnippet(id);
     loadSnippets();
+    showToast("Snippet deleted", "info");
   };
 
   const resetForm = () => {
@@ -89,12 +96,18 @@ export function SnippetManager() {
     { label: "{timestamp}", desc: "Unix timestamp" },
   ];
 
+  const filteredSnippets = snippets.filter((s) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return s.trigger.toLowerCase().includes(q) || s.content.toLowerCase().includes(q) || (s.description || "").toLowerCase().includes(q);
+  });
+
   return (
     <div>
       <div className="section-header">
-        <h2 className="section-title">Snippets</h2>
+        <h2 className="section-title">{t("snip.title")}</h2>
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "+ New Snippet"}
+          {showForm ? t("snip.cancel") : t("snip.new")}
         </button>
       </div>
 
@@ -103,7 +116,7 @@ export function SnippetManager() {
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <div>
               <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
-                Trigger (type this to expand)
+                {t("snip.trigger")}
               </label>
               <input
                 className="input"
@@ -116,7 +129,7 @@ export function SnippetManager() {
 
             <div>
               <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
-                Content (expands to this)
+                {t("snip.content")}
               </label>
               <textarea
                 className="input"
@@ -132,7 +145,7 @@ export function SnippetManager() {
 
             <div>
               <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px", display: "block" }}>
-                Dynamic Variables
+                {t("snip.variables")}
               </label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                 {VARIABLE_CHIPS.map((v) => (
@@ -154,7 +167,7 @@ export function SnippetManager() {
             {preview && (
               <div style={{ padding: "10px", background: "var(--bg-tertiary)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}>
                 <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
-                  Preview:
+                  {t("snip.preview")}:
                 </div>
                 <pre style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono)", margin: 0 }}>
                   {preview}
@@ -164,7 +177,7 @@ export function SnippetManager() {
 
             <div>
               <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
-                Description (optional)
+                {t("snip.description")}
               </label>
               <input
                 className="input"
@@ -175,26 +188,45 @@ export function SnippetManager() {
             </div>
 
             <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-              <button className="btn" onClick={resetForm}>Cancel</button>
+              <button className="btn" onClick={resetForm}>{t("snip.cancel")}</button>
               <button className="btn btn-primary" onClick={handleSave}>
-                {editingId ? "Update" : "Create"} Snippet
+                {editingId ? t("snip.update") : t("snip.create")}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {snippets.length === 0 ? (
+      {/* Search bar */}
+      <div className="search-bar" style={{ marginBottom: "12px" }}>
+        <span>{"\u{1F50D}"}</span>
+        <input
+          type="text"
+          placeholder={t("snip.search")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {search && (
+          <button className="btn-icon" onClick={() => setSearch("")}>{"\u{2715}"}</button>
+        )}
+      </div>
+
+      {filteredSnippets.length === 0 && snippets.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">{"\u{2328}\u{FE0F}"}</div>
-          <p>No snippets yet</p>
+          <p>{t("snip.empty")}</p>
           <p style={{ fontSize: "13px", marginTop: "4px" }}>
-            Create text shortcuts that expand as you type
+            {t("snip.empty.hint")}
           </p>
+        </div>
+      ) : filteredSnippets.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">{"\u{1F50D}"}</div>
+          <p>{t("snip.noMatch")}</p>
         </div>
       ) : (
         <div className="grid">
-          {snippets.map((snippet) => (
+          {filteredSnippets.map((snippet) => (
             <div key={snippet.id} className="card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
@@ -222,7 +254,7 @@ export function SnippetManager() {
                     {snippet.content}
                   </p>
                   <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                    Used {snippet.use_count} times
+                    {t("snip.used")} {snippet.use_count} {t("snip.times")}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: "4px" }}>
