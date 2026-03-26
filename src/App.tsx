@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { convertClipboardText, takeScreenshot, getSettings, aiFixGrammar, writeSystemClipboard } from "./lib/tauri";
+import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard } from "./lib/tauri";
 import { showToast } from "./components/Toast";
 import { ClipboardHistory } from "./components/ClipboardHistory";
 import { SnippetManager } from "./components/SnippetManager";
@@ -89,9 +89,9 @@ function App() {
 
     unsubs.push(listen("hotkey-screenshot", async () => {
       try {
-        await takeScreenshot();
+        const imagePath = await captureFullScreen();
+        await openScreenshotEditor(imagePath);
         playShutterSound();
-        showToast("Screenshot saved", "success");
       } catch (err) {
         if (!String(err).includes("cancelled")) {
           showToast("Screenshot failed: " + String(err), "error");

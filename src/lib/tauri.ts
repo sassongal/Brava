@@ -152,8 +152,28 @@ export const updateHotkey = (action: string, key: string, ctrl: boolean, shift: 
 export const resetHotkeyDefaults = () =>
   invoke<void>("reset_hotkey_defaults");
 
-export const takeScreenshot = () =>
-  invoke<string>("take_screenshot");
+// Screenshot editor commands
+export const captureFullScreen = () =>
+  invoke<string>("capture_full_screen");
+
+export const openScreenshotEditor = (imagePath: string) =>
+  invoke<void>("open_screenshot_editor", { imagePath });
+
+export interface ScreenshotRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export const saveScreenshotRegion = (sourcePath: string, region: ScreenshotRegion, annotatedDataUrl?: string) =>
+  invoke<string>("save_screenshot_region", { sourcePath, region, annotatedDataUrl });
+
+export const cancelScreenshot = (sourcePath?: string) =>
+  invoke<void>("cancel_screenshot", { sourcePath });
+
+export const copyScreenshotToClipboard = (imagePath: string) =>
+  invoke<void>("copy_screenshot_to_clipboard", { imagePath });
 
 // Transcription
 export interface TranscriptionResult {

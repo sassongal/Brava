@@ -201,7 +201,11 @@ pub fn run() {
             commands::hotkeys::update_hotkey,
             commands::hotkeys::reset_hotkey_defaults,
             // Screenshot commands
-            commands::screenshot::take_screenshot,
+            commands::screenshot::capture_full_screen,
+            commands::screenshot::open_screenshot_editor,
+            commands::screenshot::save_screenshot_region,
+            commands::screenshot::cancel_screenshot,
+            commands::screenshot::copy_screenshot_to_clipboard,
             // Transcription commands
             commands::transcription::transcribe_media,
         ])
