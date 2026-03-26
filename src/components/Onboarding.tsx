@@ -24,7 +24,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       const status = await checkPermissions();
       setPermissions(status);
     } catch {
-      setPermissions({ accessibility: false, screen_recording: false });
+      setPermissions({ accessibility: false, screen_recording: false, microphone: false, platform: "", arch: "", os_version: "", app_version: "" });
     }
   }, []);
 

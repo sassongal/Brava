@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard, type AppSettings, type WrongLayoutAlert } from "./lib/tauri";
+import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard, checkPermissions, type AppSettings, type WrongLayoutAlert } from "./lib/tauri";
 import { showToast } from "./components/Toast";
 import type { TranscriptionJobEvent } from "./lib/tauri";
 import { ClipboardHistory } from "./components/ClipboardHistory";
@@ -110,6 +110,12 @@ function App() {
 
     unsubs.push(listen("hotkey-screenshot", async () => {
       try {
+        // Check screen recording permission first (macOS)
+        const perms = await checkPermissions();
+        if (!perms.screen_recording) {
+          showToast(t("shot.needsPermission"), "warning");
+          return;
+        }
         const imagePath = await captureFullScreen();
         await openScreenshotEditor(imagePath);
         playShutterSound();

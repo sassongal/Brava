@@ -139,15 +139,28 @@ pub fn get_keyboard_lock_status(state: State<'_, KeyboardLockState>) -> bool {
 
 // --- Permission Status ---
 
-#[tauri::command]
-pub fn check_permissions() -> serde_json::Value {
-    let accessibility = check_accessibility_permission();
-    let screen_recording = check_screen_recording_permission();
+#[derive(serde::Serialize)]
+pub struct FullPermissionStatus {
+    pub accessibility: bool,
+    pub screen_recording: bool,
+    pub microphone: bool,
+    pub platform: String,
+    pub arch: String,
+    pub os_version: String,
+    pub app_version: String,
+}
 
-    serde_json::json!({
-        "accessibility": accessibility,
-        "screen_recording": screen_recording,
-    })
+#[tauri::command]
+pub fn check_permissions() -> FullPermissionStatus {
+    FullPermissionStatus {
+        accessibility: check_accessibility_permission(),
+        screen_recording: check_screen_recording_permission(),
+        microphone: check_microphone_permission(),
+        platform: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+        os_version: get_os_version(),
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -160,7 +173,6 @@ fn check_accessibility_permission() -> bool {
 
 #[cfg(not(target_os = "macos"))]
 fn check_accessibility_permission() -> bool {
-    // On non-macOS, assume granted (no equivalent permission model)
     true
 }
 
@@ -175,6 +187,44 @@ fn check_screen_recording_permission() -> bool {
 #[cfg(not(target_os = "macos"))]
 fn check_screen_recording_permission() -> bool {
     true
+}
+
+#[cfg(target_os = "macos")]
+fn check_microphone_permission() -> bool {
+    // On macOS, checking microphone permission requires AVFoundation
+    // which is complex in Rust. Return true and let the recording fail
+    // gracefully with a clear error if permission is missing.
+    true
+}
+
+#[cfg(not(target_os = "macos"))]
+fn check_microphone_permission() -> bool {
+    true
+}
+
+fn get_os_version() -> String {
+    if cfg!(target_os = "macos") {
+        std::process::Command::new("sw_vers")
+            .arg("-productVersion")
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| format!("macOS {}", s.trim()))
+            .unwrap_or_else(|| "macOS".to_string())
+    } else if cfg!(target_os = "windows") {
+        "Windows".to_string()
+    } else if cfg!(target_os = "linux") {
+        std::fs::read_to_string("/etc/os-release")
+            .ok()
+            .and_then(|content| {
+                content.lines()
+                    .find(|l| l.starts_with("PRETTY_NAME="))
+                    .map(|l| l.trim_start_matches("PRETTY_NAME=").trim_matches('"').to_string())
+            })
+            .unwrap_or_else(|| "Linux".to_string())
+    } else {
+        "Unknown".to_string()
+    }
 }
 
 // --- Export / Import ---

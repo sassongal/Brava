@@ -132,6 +132,11 @@ export const checkPermissions = () =>
 export interface PermissionStatus {
   accessibility: boolean;
   screen_recording: boolean;
+  microphone: boolean;
+  platform: string;
+  arch: string;
+  os_version: string;
+  app_version: string;
 }
 
 // Settings persistence commands

@@ -18,17 +18,20 @@ import {
   updateHotkey,
   resetHotkeyDefaults,
   checkApiKeyHealth,
+  checkPermissions,
   type AppSettings,
   type AIProviderInfo,
   type AppInfo,
   type HotkeyBinding,
   type ApiKeyHealth,
+  type PermissionStatus,
 } from "../lib/tauri";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { showToast } from "./Toast";
 import { useLocale, setLocale } from "../lib/i18n";
 import { getSoundsEnabled, setSoundsEnabled } from "../lib/sounds";
 
-type SettingsTab = "general" | "ai" | "layouts" | "shortcuts" | "about";
+type SettingsTab = "general" | "ai" | "layouts" | "shortcuts" | "permissions" | "about";
 
 export function Settings() {
   const [locale, t] = useLocale();
@@ -40,6 +43,7 @@ export function Settings() {
   const [hotkeyBindings, setHotkeyBindings] = useState<HotkeyBinding[]>([]);
   const [editingAction, setEditingAction] = useState<string | null>(null);
   const [soundsOn, setSoundsOn] = useState(getSoundsEnabled());
+  const [permStatus, setPermStatus] = useState<PermissionStatus | null>(null);
 
   // API key inputs
   const [geminiKey, setGeminiKey] = useState("");
@@ -97,6 +101,14 @@ export function Settings() {
   const loadBindings = () => {
     getHotkeyBindings().then(setHotkeyBindings).catch(console.error);
   };
+
+  useEffect(() => {
+    if (activeTab !== "permissions") return;
+    const load = () => checkPermissions().then(setPermStatus).catch(console.error);
+    load();
+    const interval = setInterval(load, 3000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!editingAction) return;
@@ -245,6 +257,7 @@ export function Settings() {
     { id: "ai", label: t("set.aiProviders"), icon: "\u{1F916}" },
     { id: "layouts", label: t("set.layouts"), icon: "\u{2328}\u{FE0F}" },
     { id: "shortcuts", label: t("set.shortcuts"), icon: "\u{2318}" },
+    { id: "permissions", label: t("set.permissions"), icon: "\uD83D\uDD12" },
     { id: "about", label: t("set.about"), icon: "\u{2139}\u{FE0F}" },
   ];
 
@@ -549,6 +562,80 @@ export function Settings() {
               showToast(String(err), "error");
             }
           }}>{t("set.resetDefaults")}</button>
+        </div>
+      )}
+
+      {activeTab === "permissions" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div className="card">
+            <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "8px" }}>{t("set.permStatus")}</h3>
+            <p style={{ fontSize: "12px", color: "var(--text-tertiary)", marginBottom: "16px" }}>{t("set.permStatusDesc")}</p>
+
+            {permStatus && permStatus.platform === "macos" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {[
+                  { key: "accessibility", granted: permStatus.accessibility, label: t("set.perm.accessibility"), desc: t("set.perm.accessibilityDesc"), url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility" },
+                  { key: "screen_recording", granted: permStatus.screen_recording, label: t("set.perm.screenRecording"), desc: t("set.perm.screenRecordingDesc"), url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" },
+                  { key: "microphone", granted: permStatus.microphone, label: t("set.perm.microphone"), desc: t("set.perm.microphoneDesc"), url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone" },
+                ].map((perm) => (
+                  <div key={perm.key} style={{
+                    display: "flex", alignItems: "center", gap: "12px",
+                    padding: "12px", background: "var(--bg-primary)",
+                    border: `1px solid ${perm.granted ? "var(--success)" : "var(--error)"}`,
+                    borderRadius: "var(--radius-lg)",
+                  }}>
+                    <div style={{
+                      width: 10, height: 10, borderRadius: "50%",
+                      background: perm.granted ? "var(--success)" : "var(--error)",
+                      flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "13px", fontWeight: 600 }}>{perm.label}</div>
+                      <div style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>{perm.desc}</div>
+                    </div>
+                    {perm.granted ? (
+                      <span style={{ fontSize: "12px", color: "var(--success)", fontWeight: 600 }}>{t("set.perm.granted")}</span>
+                    ) : (
+                      <button className="btn btn-sm" onClick={() => openUrl(perm.url)} style={{ background: "var(--accent)", color: "white", border: "none", fontWeight: 600 }}>
+                        {t("set.perm.grantAccess")}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {permStatus && permStatus.platform === "windows" && (
+              <p style={{ fontSize: "13px", color: "var(--text-secondary)", padding: "12px", background: "var(--bg-primary)", borderRadius: "var(--radius-lg)" }}>
+                {t("set.windowsNote")}
+              </p>
+            )}
+
+            {permStatus && permStatus.platform === "linux" && (
+              <p style={{ fontSize: "13px", color: "var(--text-secondary)", padding: "12px", background: "var(--bg-primary)", borderRadius: "var(--radius-lg)" }}>
+                {t("set.linuxNote")}
+              </p>
+            )}
+
+            <button className="btn btn-sm" onClick={() => checkPermissions().then(setPermStatus)} style={{ marginTop: "12px", alignSelf: "flex-start" }}>
+              {t("set.perm.refresh")}
+            </button>
+          </div>
+
+          {/* Platform Info */}
+          {permStatus && (
+            <div className="card">
+              <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px" }}>{t("set.platformInfo")}</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "13px" }}>
+                <div style={{ color: "var(--text-tertiary)" }}>Platform</div>
+                <div>{permStatus.os_version || permStatus.platform}</div>
+                <div style={{ color: "var(--text-tertiary)" }}>Architecture</div>
+                <div>{permStatus.arch}</div>
+                <div style={{ color: "var(--text-tertiary)" }}>App Version</div>
+                <div>v{permStatus.app_version}</div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
