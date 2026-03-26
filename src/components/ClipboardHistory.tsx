@@ -77,21 +77,34 @@ export function ClipboardHistory() {
   };
 
   const handleDelete = async (id: string) => {
-    await deleteClipboardItem(id);
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    try {
+      await deleteClipboardItem(id);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    } catch (err) {
+      showToast("Failed: " + String(err), "error");
+    }
   };
 
   const handlePin = async (id: string) => {
-    await toggleClipboardPin(id);
-    loadItems();
+    try {
+      await toggleClipboardPin(id);
+      loadItems();
+    } catch (err) {
+      showToast("Failed: " + String(err), "error");
+    }
   };
 
   const handleFavorite = async (id: string) => {
-    await toggleClipboardFavorite(id);
-    loadItems();
+    try {
+      await toggleClipboardFavorite(id);
+      loadItems();
+    } catch (err) {
+      showToast("Failed: " + String(err), "error");
+    }
   };
 
   const handleClear = async () => {
+    if (!confirm(t("clip.clearAll") + "?")) return;
     await clearClipboardHistory();
     loadItems();
   };

@@ -61,7 +61,11 @@ pub fn update_hotkey(
 
     // Check for conflicts
     for (existing_action, existing_hotkey) in manager.get_all_bindings() {
-        if existing_action != action_enum && existing_hotkey.to_shortcut_string() == new_hotkey.to_shortcut_string() {
+        if existing_action != action_enum
+            && existing_hotkey.key == new_hotkey.key
+            && existing_hotkey.shift == new_hotkey.shift
+            && existing_hotkey.alt == new_hotkey.alt
+            && (existing_hotkey.ctrl || existing_hotkey.meta) == (new_hotkey.ctrl || new_hotkey.meta) {
             return Err(format!("Shortcut already used by: {}", existing_action.display_name()));
         }
     }

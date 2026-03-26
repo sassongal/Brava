@@ -11,6 +11,7 @@ export function Transcription() {
   const [error, setError] = useState<string | null>(null);
 
   const handleFileSelect = async () => {
+    if (loading) return;
     // Use Tauri dialog to pick a file
     const { open: openDialog } = await import("@tauri-apps/plugin-dialog");
     const selected = await openDialog({

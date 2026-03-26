@@ -60,6 +60,10 @@ export function Settings() {
     const handler = async (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      if (e.key === "Escape") {
+        setEditingAction(null);
+        return;
+      }
       // Ignore modifier-only presses
       if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return;
 

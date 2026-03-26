@@ -71,6 +71,7 @@ export function SnippetManager() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Delete this snippet?")) return;
     await deleteSnippet(id);
     loadSnippets();
     showToast("Snippet deleted", "info");

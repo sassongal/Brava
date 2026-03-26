@@ -21,6 +21,17 @@ pub async fn transcribe_media(
         provider.get_api_key().ok_or_else(|| "OpenAI API key required for transcription".to_string())?
     };
 
+    // Check file size before reading
+    let metadata = std::fs::metadata(file_path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let file_size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+    if file_size_mb > 25.0 {
+        return Err(format!(
+            "File is {:.1}MB. OpenAI Whisper limit is 25MB.",
+            file_size_mb
+        ));
+    }
+
     // Read the file
     let file_bytes = std::fs::read(file_path)
         .map_err(|e| format!("Failed to read file: {}", e))?;
@@ -30,21 +41,31 @@ pub async fn transcribe_media(
         .map(|f| f.to_string_lossy().to_string())
         .unwrap_or_else(|| "audio.mp3".to_string());
 
-    // Check file size — Whisper API limit is 25MB
-    let file_size_mb = file_bytes.len() as f64 / (1024.0 * 1024.0);
-
-    if file_size_mb > 25.0 {
-        return Err(format!(
-            "File is {:.1}MB. OpenAI Whisper limit is 25MB. Please use a shorter clip or compress the file.",
-            file_size_mb
-        ));
-    }
+    // Derive MIME type from extension
+    let mime_type = match std::path::Path::new(file_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("mp3")
+    {
+        "wav" => "audio/wav",
+        "m4a" | "aac" => "audio/mp4",
+        "ogg" => "audio/ogg",
+        "flac" => "audio/flac",
+        "mp4" | "mov" => "video/mp4",
+        "avi" => "video/x-msvideo",
+        "mkv" => "video/x-matroska",
+        "webm" => "video/webm",
+        _ => "audio/mpeg",
+    };
 
     // Build multipart form request
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
     let part = reqwest::multipart::Part::bytes(file_bytes)
         .file_name(file_name)
-        .mime_str("audio/mpeg")
+        .mime_str(mime_type)
         .map_err(|e| format!("Failed to create form part: {}", e))?;
 
     let form = reqwest::multipart::Form::new()

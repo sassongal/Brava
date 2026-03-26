@@ -22,6 +22,9 @@ function playTone(frequency: number, duration: number, type: OscillatorType = "s
   if (!soundsEnabled) return;
   try {
     const ctx = getAudioContext();
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;

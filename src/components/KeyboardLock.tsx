@@ -68,10 +68,10 @@ export function KeyboardLock() {
     }}>
       <div style={{ fontSize: 80, marginBottom: 16 }}>{"\uD83D\uDD12"}</div>
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{t("lock.title")}</h1>
-      <p style={{ fontSize: 18, color: "#aaa", marginBottom: 24 }}>
+      <p style={{ fontSize: 18, color: "var(--brava-beige)", marginBottom: 24 }}>
         {t("lock.elapsed")}: {formatTimer(timer)}
       </p>
-      <p style={{ fontSize: 14, color: "#888", marginBottom: 32 }}>
+      <p style={{ fontSize: 14, color: "var(--brava-ink-soft)", marginBottom: 32 }}>
         {t("lock.clickUnlock")}
       </p>
       <button
@@ -82,7 +82,7 @@ export function KeyboardLock() {
           fontWeight: 600,
           borderRadius: 8,
           border: "none",
-          background: "#6366f1",
+          background: "var(--accent)",
           color: "#fff",
           cursor: "pointer",
         }}

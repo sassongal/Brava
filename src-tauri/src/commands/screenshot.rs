@@ -18,7 +18,7 @@ pub async fn take_screenshot(
         .map_err(|e| format!("Failed to create screenshots dir: {}", e))?;
 
     // Generate filename
-    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S_%3f");
     let filename = format!("screenshot_{}.png", timestamp);
     let filepath = screenshots_dir.join(&filename);
     let filepath_str = filepath.to_string_lossy().to_string();

@@ -106,6 +106,7 @@ impl HotkeyAction {
             HotkeyAction::TranslateSelection,
             HotkeyAction::Screenshot,
             HotkeyAction::KeyboardLock,
+            HotkeyAction::VoiceInput,
         ]
     }
 }
