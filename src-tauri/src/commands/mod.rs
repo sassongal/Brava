@@ -5,3 +5,4 @@ pub mod ai;
 pub mod settings;
 pub mod hotkeys;
 pub mod screenshot;
+pub mod transcription;

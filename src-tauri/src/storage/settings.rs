@@ -32,6 +32,18 @@ pub struct AppSettings {
 
     // Caffeine
     pub caffeine_enabled: bool,
+
+    // Grammar correction
+    #[serde(default)]
+    pub grammar_enabled: bool,
+
+    // Sounds
+    #[serde(default = "default_sounds_enabled")]
+    pub sounds_enabled: bool,
+}
+
+fn default_sounds_enabled() -> bool {
+    true
 }
 
 impl Default for AppSettings {
@@ -59,6 +71,9 @@ impl Default for AppSettings {
             keyboard_lock_timer: None,
 
             caffeine_enabled: false,
+
+            grammar_enabled: false,
+            sounds_enabled: true,
         }
     }
 }

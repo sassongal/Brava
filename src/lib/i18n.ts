@@ -125,6 +125,26 @@ const translations = {
   "set.action.keyboard_lock": { en: "Keyboard Lock", he: "נעילת מקלדת" },
   "set.action.voice_input": { en: "Voice Input", he: "קלט קולי" },
 
+  "app.transcription": { en: "Transcribe", he: "תמלול" },
+
+  // Sound & Grammar settings
+  "set.sounds": { en: "Sound Effects", he: "אפקטי קול" },
+  "set.soundsDesc": { en: "Play sounds on actions (conversion, screenshot, etc.)", he: "השמע צלילים בפעולות (המרה, צילום מסך וכו')" },
+  "set.grammar": { en: "Auto Grammar Correction", he: "תיקון דקדוק אוטומטי" },
+  "set.grammarDesc": { en: "Fix grammar after layout conversion using AI", he: "תקן דקדוק לאחר המרת פריסה באמצעות AI" },
+  "set.transcription": { en: "Media Transcription", he: "תמלול מדיה" },
+  "set.transcriptionDesc": { en: "Transcribe audio/video files to text", he: "תמלל קבצי שמע/וידאו לטקסט" },
+
+  // Transcription
+  "trans.title": { en: "Media Transcription", he: "תמלול מדיה" },
+  "trans.dropOrSelect": { en: "Drop a media file or click to select", he: "גרור קובץ מדיה או לחץ לבחירה" },
+  "trans.supported": { en: "Supports MP3, WAV, M4A, MP4, MOV, AVI, MKV", he: "תומך ב-MP3, WAV, M4A, MP4, MOV, AVI, MKV" },
+  "trans.transcribing": { en: "Transcribing...", he: "מתמלל..." },
+  "trans.complete": { en: "Transcription complete", he: "התמלול הושלם" },
+  "trans.copyText": { en: "Copy Text", he: "העתק טקסט" },
+  "trans.autoDetect": { en: "Auto-detect language", he: "זיהוי שפה אוטומטי" },
+  "trans.noApiKey": { en: "OpenAI API key required for transcription. Set it in Settings > AI Providers.", he: "נדרש מפתח API של OpenAI לתמלול. הגדר אותו בהגדרות > ספקי AI." },
+
   // Onboarding
   "onb.welcome": { en: "Welcome to Brava", he: "ברוכים הבאים ל-Brava" },
   "onb.welcomeDesc": { en: "Your cross-platform productivity toolkit. Smart keyboard layout conversion, clipboard management, and AI-powered text tools.", he: "ערכת הכלים שלך לפרודוקטיביות חוצת פלטפורמות. המרת פריסת מקלדת חכמה, ניהול לוח, וכלי טקסט מונעי AI." },

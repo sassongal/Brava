@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { convertClipboardText, takeScreenshot } from "./lib/tauri";
+import { convertClipboardText, takeScreenshot, getSettings, aiFixGrammar, writeSystemClipboard } from "./lib/tauri";
 import { showToast } from "./components/Toast";
 import { ClipboardHistory } from "./components/ClipboardHistory";
 import { SnippetManager } from "./components/SnippetManager";
@@ -10,10 +10,12 @@ import { Settings } from "./components/Settings";
 import { Onboarding } from "./components/Onboarding";
 import { ToastContainer } from "./components/Toast";
 import { KeyboardLock } from "./components/KeyboardLock";
+import { Transcription } from "./components/Transcription";
 import { useLocale, setLocale, initLocale } from "./lib/i18n";
+import { playConvertSound, playShutterSound } from "./lib/sounds";
 import logoMark from "./assets/brava-brand/logos/logo-mark.svg";
 
-type Tab = "clipboard" | "converter" | "snippets" | "ai" | "settings";
+type Tab = "clipboard" | "converter" | "snippets" | "ai" | "transcription" | "settings";
 
 function App() {
   const [locale, t] = useLocale();
@@ -33,11 +35,12 @@ function App() {
     { id: "converter", label: t("app.converter"), icon: "" },
     { id: "snippets", label: t("app.snippets"), icon: "" },
     { id: "ai", label: t("app.ai"), icon: "" },
+    { id: "transcription", label: t("app.transcription"), icon: "" },
     { id: "settings", label: t("app.settings"), icon: "" },
   ];
 
   const navigate = useCallback((tab: string) => {
-    if (["clipboard", "converter", "snippets", "ai", "settings"].includes(tab)) {
+    if (["clipboard", "converter", "snippets", "ai", "transcription", "settings"].includes(tab)) {
       setActiveTab(tab as Tab);
     }
   }, []);
@@ -53,7 +56,20 @@ function App() {
     unsubs.push(listen("hotkey-convert", async () => {
       try {
         const result = await convertClipboardText();
+        playConvertSound();
         showToast(`Converted: ${result.slice(0, 50)}...`, "success");
+
+        // Auto grammar correction if enabled
+        const settings = await getSettings();
+        if (settings.grammar_enabled) {
+          try {
+            const fixed = await aiFixGrammar(result);
+            if (fixed.content !== result) {
+              await writeSystemClipboard(fixed.content);
+              showToast("Grammar corrected", "success");
+            }
+          } catch { /* grammar fix is best-effort */ }
+        }
       } catch (err) {
         showToast("Convert failed: " + String(err), "error");
       }
@@ -74,6 +90,7 @@ function App() {
     unsubs.push(listen("hotkey-screenshot", async () => {
       try {
         await takeScreenshot();
+        playShutterSound();
         showToast("Screenshot saved", "success");
       } catch (err) {
         if (!String(err).includes("cancelled")) {
@@ -127,6 +144,14 @@ function App() {
         <line x1="2" y1="8" x2="4" y2="8"/><line x1="12" y1="8" x2="14" y2="8"/>
       </svg>
     ),
+    transcription: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="1" width="6" height="9" rx="3"/>
+        <path d="M3 7a5 5 0 0010 0"/>
+        <line x1="8" y1="12" x2="8" y2="15"/>
+        <line x1="5" y1="15" x2="11" y2="15"/>
+      </svg>
+    ),
     settings: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="8" cy="8" r="2.5"/>
@@ -162,6 +187,7 @@ function App() {
         {activeTab === "converter" && <LayoutConverter />}
         {activeTab === "snippets" && <SnippetManager />}
         {activeTab === "ai" && <AITools />}
+        {activeTab === "transcription" && <Transcription />}
         {activeTab === "settings" && <Settings />}
       </main>
 

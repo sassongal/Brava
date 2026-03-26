@@ -64,6 +64,10 @@ impl OpenAIProvider {
         self.api_key = Some(key);
     }
 
+    pub fn get_api_key(&self) -> Option<String> {
+        self.api_key.clone()
+    }
+
     pub async fn complete(&self, request: &AIRequest) -> Result<AIResponse, AIError> {
         let api_key = self.api_key.as_ref().ok_or(AIError::NoApiKey {
             provider: "OpenAI".to_string(),

@@ -22,6 +22,7 @@ import {
 } from "../lib/tauri";
 import { showToast } from "./Toast";
 import { useLocale, setLocale } from "../lib/i18n";
+import { getSoundsEnabled, setSoundsEnabled } from "../lib/sounds";
 
 type SettingsTab = "general" | "ai" | "layouts" | "shortcuts" | "about";
 
@@ -34,6 +35,7 @@ export function Settings() {
   const [caffeineOn, setCaffeineOn] = useState(false);
   const [hotkeyBindings, setHotkeyBindings] = useState<HotkeyBinding[]>([]);
   const [editingAction, setEditingAction] = useState<string | null>(null);
+  const [soundsOn, setSoundsOn] = useState(getSoundsEnabled());
 
   // API key inputs
   const [geminiKey, setGeminiKey] = useState("");
@@ -223,6 +225,20 @@ export function Settings() {
 
           <div className="card">
             <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px" }}>{t("set.utilities")}</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <div>
+                <label>{t("set.sounds")}</label>
+                <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>{t("set.soundsDesc")}</p>
+              </div>
+              <button className={`toggle ${soundsOn ? "active" : ""}`} onClick={() => { const next = !soundsOn; setSoundsOn(next); setSoundsEnabled(next); }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <div>
+                <label>{t("set.grammar")}</label>
+                <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>{t("set.grammarDesc")}</p>
+              </div>
+              <button className={`toggle ${settings.grammar_enabled ? "active" : ""}`} onClick={() => updateField("grammar_enabled", !settings.grammar_enabled)} />
+            </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <div>
                 <label>{t("set.caffeine")}</label>

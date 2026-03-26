@@ -50,6 +50,7 @@ pub struct KeyboardLockState {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             // Initialize database in the app data directory
@@ -175,6 +176,7 @@ pub fn run() {
             commands::ai::ai_complete,
             commands::ai::ai_enhance_prompt,
             commands::ai::ai_translate,
+            commands::ai::ai_fix_grammar,
             commands::ai::set_ai_provider,
             commands::ai::set_api_key,
             commands::ai::get_ai_models,
@@ -200,6 +202,8 @@ pub fn run() {
             commands::hotkeys::reset_hotkey_defaults,
             // Screenshot commands
             commands::screenshot::take_screenshot,
+            // Transcription commands
+            commands::transcription::transcribe_media,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Brava");

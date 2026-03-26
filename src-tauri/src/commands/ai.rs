@@ -103,6 +103,39 @@ pub async fn ai_translate(
 }
 
 #[tauri::command]
+pub async fn ai_fix_grammar(
+    text: &str,
+    state: State<'_, AIState>,
+) -> Result<AIResponse, String> {
+    use crate::ai::provider::AIRequest;
+
+    // Detect if Hebrew
+    let is_hebrew = text.trim().chars()
+        .filter(|c| !c.is_whitespace() && !c.is_ascii_punctuation())
+        .take(30)
+        .any(|c| ('\u{0590}'..='\u{05FF}').contains(&c));
+
+    let system_prompt = if is_hebrew {
+        "אתה עורך טקסט מקצועי. תקן שגיאות דקדוק, כתיב ופיסוק בטקסט. \
+         שמור על המשמעות המקורית. החזר רק את הטקסט המתוקן, ללא הסברים."
+    } else {
+        "You are a professional text editor. Fix grammar, spelling, and punctuation errors in the text. \
+         Preserve the original meaning. Return ONLY the corrected text, no explanations."
+    };
+
+    let request = AIRequest {
+        prompt: text.to_string(),
+        system_prompt: Some(system_prompt.to_string()),
+        model: None,
+        max_tokens: Some(4096),
+        temperature: Some(0.2),
+    };
+
+    let active = state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    complete_with_provider(&active, &state, &request).await
+}
+
+#[tauri::command]
 pub fn set_ai_provider(provider: &str, state: State<'_, AIState>) -> Result<(), String> {
     let valid = ["gemini", "openai", "claude", "openrouter", "ollama"];
     if !valid.contains(&provider) {

@@ -70,6 +70,9 @@ export const aiEnhancePrompt = (text: string) =>
 export const aiTranslate = (text: string, sourceLang: string, targetLang: string) =>
   invoke<AIResponse>("ai_translate", { text, sourceLang, targetLang });
 
+export const aiFixGrammar = (text: string) =>
+  invoke<AIResponse>("ai_fix_grammar", { text });
+
 export const setAiProvider = (provider: string) =>
   invoke<void>("set_ai_provider", { provider });
 
@@ -151,6 +154,16 @@ export const resetHotkeyDefaults = () =>
 
 export const takeScreenshot = () =>
   invoke<string>("take_screenshot");
+
+// Transcription
+export interface TranscriptionResult {
+  text: string;
+  language: string;
+  duration_seconds: number | null;
+}
+
+export const transcribeMedia = (filePath: string) =>
+  invoke<TranscriptionResult>("transcribe_media", { filePath });
 
 // Types
 export interface ConversionResult {
@@ -235,6 +248,8 @@ export interface AppSettings {
   ollama_endpoint: string;
   keyboard_lock_timer: number | null;
   caffeine_enabled: boolean;
+  grammar_enabled: boolean;
+  sounds_enabled: boolean;
 }
 
 export interface AppInfo {
