@@ -91,3 +91,28 @@ pub fn write_system_clipboard(text: &str, state: State<'_, ClipboardState>) -> R
     clipboard.set_text(text)
         .map_err(|e| format!("Failed to write clipboard: {}", e))
 }
+
+/// Write an image file to the system clipboard
+#[tauri::command]
+pub fn write_image_to_clipboard(image_path: &str, state: State<'_, ClipboardState>) -> Result<(), String> {
+    use image::GenericImageView;
+
+    let img = image::open(image_path)
+        .map_err(|e| format!("Failed to open image: {}", e))?;
+    let rgba = img.to_rgba8();
+    let (width, height) = img.dimensions();
+
+    let img_data = arboard::ImageData {
+        width: width as usize,
+        height: height as usize,
+        bytes: std::borrow::Cow::Owned(rgba.into_raw()),
+    };
+
+    // Mark skip so monitor doesn't recapture
+    state.0.set_skip(&format!("__image_{}x{}", width, height));
+
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|e| format!("Failed to access clipboard: {}", e))?;
+    clipboard.set_image(img_data)
+        .map_err(|e| format!("Failed to write image to clipboard: {}", e))
+}

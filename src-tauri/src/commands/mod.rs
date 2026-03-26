@@ -3,3 +3,5 @@ pub mod clipboard;
 pub mod snippets;
 pub mod ai;
 pub mod settings;
+pub mod hotkeys;
+pub mod screenshot;

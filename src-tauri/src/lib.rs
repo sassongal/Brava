@@ -106,29 +106,34 @@ pub fn run() {
             // Setup system tray
             setup_tray(app)?;
 
-            // Register global shortcuts
+            // Create hotkey manager and load saved bindings
+            let mut hotkey_manager = engine::hotkeys::HotkeyManager::new();
+            if let Ok(Some(bindings_json)) = db.get_setting("hotkey_bindings") {
+                if let Ok(bindings) = serde_json::from_str::<Vec<(engine::hotkeys::HotkeyAction, engine::hotkeys::Hotkey)>>(&bindings_json) {
+                    hotkey_manager.load_bindings(bindings);
+                }
+            }
+
+            // Register all shortcuts
             {
                 use tauri::Emitter;
                 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-                let shortcuts: Vec<(&str, &str)> = vec![
-                    ("CmdOrCtrl+Shift+T", "hotkey-convert"),
-                    ("CmdOrCtrl+Shift+V", "hotkey-clipboard"),
-                    ("CmdOrCtrl+Shift+P", "hotkey-enhance"),
-                    ("CmdOrCtrl+Shift+L", "hotkey-translate"),
-                ];
-
-                for (shortcut_str, event_name) in shortcuts {
-                    let shortcut: Shortcut = shortcut_str.parse().expect(&format!("Invalid shortcut: {}", shortcut_str));
-                    let handle = app.handle().clone();
-                    let event = event_name.to_string();
-                    app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, e| {
-                        if e.state == ShortcutState::Pressed {
-                            let _ = handle.emit(&event, ());
-                        }
-                    })?;
+                for (action, hotkey) in hotkey_manager.get_all_bindings() {
+                    let shortcut_str = hotkey.to_shortcut_string();
+                    if let Ok(shortcut) = shortcut_str.parse::<Shortcut>() {
+                        let handle = app.handle().clone();
+                        let event = action.to_event_name().to_string();
+                        app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, e| {
+                            if e.state == ShortcutState::Pressed {
+                                let _ = handle.emit(&event, ());
+                            }
+                        })?;
+                    }
                 }
             }
+
+            app.manage(commands::hotkeys::HotkeyState(Mutex::new(hotkey_manager)));
 
             // Start background clipboard monitoring
             let app_handle = app.handle().clone();
@@ -158,6 +163,7 @@ pub fn run() {
             commands::clipboard::get_clipboard_count,
             commands::clipboard::read_system_clipboard,
             commands::clipboard::write_system_clipboard,
+            commands::clipboard::write_image_to_clipboard,
             // Snippet commands
             commands::snippets::get_snippets,
             commands::snippets::add_snippet,
@@ -188,6 +194,12 @@ pub fn run() {
             commands::settings::toggle_keyboard_lock,
             commands::settings::get_keyboard_lock_status,
             commands::settings::check_permissions,
+            // Hotkey commands
+            commands::hotkeys::get_hotkey_bindings,
+            commands::hotkeys::update_hotkey,
+            commands::hotkeys::reset_hotkey_defaults,
+            // Screenshot commands
+            commands::screenshot::take_screenshot,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Brava");

@@ -39,6 +39,7 @@ pub struct ClipboardItem {
     pub accessed_at: DateTime<Utc>,
     pub access_count: u32,
     pub source_app: Option<String>,
+    pub image_path: Option<String>,
 }
 
 impl ClipboardItem {
@@ -59,6 +60,30 @@ impl ClipboardItem {
             accessed_at: Utc::now(),
             access_count: 0,
             source_app: None,
+            image_path: None,
+        }
+    }
+
+    pub fn new_image(image_path: String) -> Self {
+        let hash = Self::compute_hash(&image_path);
+        let filename = std::path::Path::new(&image_path)
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_else(|| "image".to_string());
+
+        ClipboardItem {
+            id: Uuid::new_v4().to_string(),
+            content: filename,
+            preview: "[Image]".to_string(),
+            category: ClipboardCategory::Image,
+            hash,
+            pinned: false,
+            favorite: false,
+            created_at: Utc::now(),
+            accessed_at: Utc::now(),
+            access_count: 0,
+            source_app: None,
+            image_path: Some(image_path),
         }
     }
 
@@ -193,6 +218,30 @@ impl ClipboardManager {
             } else {
                 break;
             }
+        }
+
+        Some(result)
+    }
+
+    /// Add an image item to clipboard history. Returns None if duplicate.
+    pub fn add_image(&self, image_path: String) -> Option<ClipboardItem> {
+        let item = ClipboardItem::new_image(image_path);
+
+        let mut last_hash = self.last_hash.lock().unwrap_or_else(|e| e.into_inner());
+        if *last_hash == item.hash {
+            return None;
+        }
+        *last_hash = item.hash.clone();
+        drop(last_hash);
+
+        let mut items = self.items.lock().unwrap_or_else(|e| e.into_inner());
+        let result = item.clone();
+        items.insert(0, item);
+
+        while items.len() > self.max_items {
+            if let Some(pos) = items.iter().rposition(|i| !i.pinned) {
+                if pos > 0 { items.remove(pos); } else { break; }
+            } else { break; }
         }
 
         Some(result)

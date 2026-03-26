@@ -376,6 +376,7 @@ dependencies = [
  "chrono",
  "env_logger",
  "hex",
+ "image",
  "keyring",
  "log",
  "once_cell",

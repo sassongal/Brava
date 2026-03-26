@@ -7,8 +7,10 @@ import {
   toggleClipboardFavorite,
   clearClipboardHistory,
   writeSystemClipboard,
+  writeImageToClipboard,
   type ClipboardItem,
 } from "../lib/tauri";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { showToast } from "./Toast";
 import { useLocale } from "../lib/i18n";
 
@@ -63,8 +65,12 @@ export function ClipboardHistory() {
 
   const handleCopy = async (item: ClipboardItem) => {
     try {
-      await writeSystemClipboard(item.content);
-      showToast("Copied to clipboard", "success");
+      if (item.image_path) {
+        await writeImageToClipboard(item.image_path);
+      } else {
+        await writeSystemClipboard(item.content);
+      }
+      showToast(t("clip.copied"), "success");
     } catch (err) {
       showToast("Failed to copy: " + String(err), "error");
     }
@@ -120,6 +126,7 @@ export function ClipboardHistory() {
             <option value="code">{t("clip.cat.code")}</option>
             <option value="color">{t("clip.cat.color")}</option>
             <option value="path">{t("clip.cat.path")}</option>
+            <option value="image">{t("clip.cat.image")}</option>
           </select>
           <button className="btn btn-danger btn-sm" onClick={handleClear}>
             {t("clip.clearAll")}
@@ -190,18 +197,31 @@ export function ClipboardHistory() {
                       {formatTime(item.created_at)}
                     </span>
                   </div>
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      color: "var(--text-primary)",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      maxHeight: "60px",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {item.preview}
-                  </p>
+                  {item.image_path ? (
+                    <img
+                      src={convertFileSrc(item.image_path)}
+                      alt="Clipboard image"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "80px",
+                        borderRadius: "var(--radius-sm)",
+                        objectFit: "cover",
+                      }}
+                    />
+                  ) : (
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        color: "var(--text-primary)",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        maxHeight: "60px",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {item.preview}
+                    </p>
+                  )}
                 </div>
                 <div
                   style={{

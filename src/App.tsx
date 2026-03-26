@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { convertClipboardText } from "./lib/tauri";
+import { convertClipboardText, takeScreenshot } from "./lib/tauri";
 import { showToast } from "./components/Toast";
 import { ClipboardHistory } from "./components/ClipboardHistory";
 import { SnippetManager } from "./components/SnippetManager";
@@ -69,6 +69,17 @@ function App() {
 
     unsubs.push(listen("hotkey-translate", () => {
       navigate("ai");
+    }));
+
+    unsubs.push(listen("hotkey-screenshot", async () => {
+      try {
+        await takeScreenshot();
+        showToast("Screenshot saved", "success");
+      } catch (err) {
+        if (!String(err).includes("cancelled")) {
+          showToast("Screenshot failed: " + String(err), "error");
+        }
+      }
     }));
 
     return () => { unsubs.forEach((u) => u.then((fn) => fn())); };

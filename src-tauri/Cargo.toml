@@ -32,3 +32,4 @@ thiserror = "1"
 regex = "1"
 tauri-plugin-global-shortcut = "2"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+image = { version = "0.25", default-features = false, features = ["png"] }

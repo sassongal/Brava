@@ -77,6 +77,9 @@ impl Database {
             "
         ).map_err(|e| format!("Failed to create tables: {}", e))?;
 
+        // Migration: add image_path column
+        let _ = conn.execute("ALTER TABLE clipboard_history ADD COLUMN image_path TEXT", []);
+
         Ok(())
     }
 
@@ -86,8 +89,8 @@ impl Database {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         conn.execute(
             "INSERT OR REPLACE INTO clipboard_history
-             (id, content, preview, category, hash, pinned, favorite, created_at, accessed_at, access_count, source_app)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             (id, content, preview, category, hash, pinned, favorite, created_at, accessed_at, access_count, source_app, image_path)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 item.id,
                 item.content,
@@ -100,6 +103,7 @@ impl Database {
                 item.accessed_at.to_rfc3339(),
                 item.access_count,
                 item.source_app,
+                item.image_path,
             ],
         ).map_err(|e| format!("Failed to save clipboard item: {}", e))?;
         Ok(())
@@ -108,7 +112,7 @@ impl Database {
     pub fn load_clipboard_history(&self, limit: usize) -> Result<Vec<ClipboardItem>, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare(
-            "SELECT id, content, preview, category, hash, pinned, favorite, created_at, accessed_at, access_count, source_app
+            "SELECT id, content, preview, category, hash, pinned, favorite, created_at, accessed_at, access_count, source_app, image_path
              FROM clipboard_history ORDER BY created_at DESC LIMIT ?1"
         ).map_err(|e| format!("Failed to prepare query: {}", e))?;
 
@@ -135,6 +139,7 @@ impl Database {
                     .unwrap_or_else(|_| chrono::Utc::now()),
                 access_count: row.get::<_, u32>(9)?,
                 source_app: row.get(10)?,
+                image_path: row.get(11).ok(),
             })
         }).map_err(|e| format!("Failed to query clipboard: {}", e))?;
 

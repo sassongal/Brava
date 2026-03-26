@@ -12,14 +12,18 @@ import {
   toggleCaffeine,
   getCaffeineStatus,
   toggleKeyboardLock,
+  getHotkeyBindings,
+  updateHotkey,
+  resetHotkeyDefaults,
   type AppSettings,
   type AIProviderInfo,
   type AppInfo,
+  type HotkeyBinding,
 } from "../lib/tauri";
 import { showToast } from "./Toast";
 import { useLocale, setLocale } from "../lib/i18n";
 
-type SettingsTab = "general" | "ai" | "layouts" | "about";
+type SettingsTab = "general" | "ai" | "layouts" | "shortcuts" | "about";
 
 export function Settings() {
   const [locale, t] = useLocale();
@@ -28,6 +32,8 @@ export function Settings() {
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [caffeineOn, setCaffeineOn] = useState(false);
+  const [hotkeyBindings, setHotkeyBindings] = useState<HotkeyBinding[]>([]);
+  const [editingAction, setEditingAction] = useState<string | null>(null);
 
   // API key inputs
   const [geminiKey, setGeminiKey] = useState("");
@@ -40,7 +46,40 @@ export function Settings() {
     getAiProviders().then(setProviders).catch(console.error);
     getAppInfo().then(setAppInfo).catch(console.error);
     getCaffeineStatus().then(setCaffeineOn).catch(console.error);
+    loadBindings();
   }, []);
+
+  const loadBindings = () => {
+    getHotkeyBindings().then(setHotkeyBindings).catch(console.error);
+  };
+
+  useEffect(() => {
+    if (!editingAction) return;
+    const handler = async (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Ignore modifier-only presses
+      if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return;
+
+      try {
+        await updateHotkey(
+          editingAction,
+          e.key.length === 1 ? e.key.toLowerCase() : e.key,
+          e.ctrlKey,
+          e.shiftKey,
+          e.altKey,
+          e.metaKey,
+        );
+        showToast(t("set.shortcutSaved"), "success");
+      } catch (err) {
+        showToast(String(err), "error");
+      }
+      setEditingAction(null);
+      loadBindings();
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [editingAction]);
 
   const handleSave = async () => {
     if (!settings) return;
@@ -111,6 +150,7 @@ export function Settings() {
     { id: "general", label: t("set.general"), icon: "\u{2699}\u{FE0F}" },
     { id: "ai", label: t("set.aiProviders"), icon: "\u{1F916}" },
     { id: "layouts", label: t("set.layouts"), icon: "\u{2328}\u{FE0F}" },
+    { id: "shortcuts", label: t("set.shortcuts"), icon: "\u{2318}" },
     { id: "about", label: t("set.about"), icon: "\u{2139}\u{FE0F}" },
   ];
 
@@ -262,6 +302,60 @@ export function Settings() {
           </div>
 
           <button className="btn btn-primary" onClick={handleSave}>{t("set.save")}</button>
+        </div>
+      )}
+
+      {activeTab === "shortcuts" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {editingAction && (
+            <div style={{
+              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+              background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center",
+              justifyContent: "center", zIndex: 1000,
+            }}>
+              <div className="card" style={{ padding: "32px", textAlign: "center", minWidth: "300px" }}>
+                <p style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>{t("set.pressShortcut")}</p>
+                <p style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
+                  Esc to cancel
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="card">
+            <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px" }}>{t("set.shortcuts")}</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {hotkeyBindings.map((binding) => {
+                const displayName = t(`set.action.${binding.action}` as any) || binding.action_display;
+                return (
+                  <div key={binding.action} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "8px 12px", background: "var(--bg-tertiary)", borderRadius: "var(--radius-sm)",
+                  }}>
+                    <span style={{ fontSize: "13px", fontWeight: 500 }}>{displayName}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <code style={{
+                        padding: "4px 8px", background: "var(--bg-primary)",
+                        borderRadius: "var(--radius-sm)", fontSize: "12px",
+                        border: "1px solid var(--border-primary)",
+                      }}>{binding.display_string}</code>
+                      <button className="btn btn-sm" onClick={() => setEditingAction(binding.action)}>
+                        {t("set.editShortcut")}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <button className="btn" onClick={async () => {
+            try {
+              await resetHotkeyDefaults();
+              loadBindings();
+              showToast(t("set.shortcutSaved"), "success");
+            } catch (err) {
+              showToast(String(err), "error");
+            }
+          }}>{t("set.resetDefaults")}</button>
         </div>
       )}
 

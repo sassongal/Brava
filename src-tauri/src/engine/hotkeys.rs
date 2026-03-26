@@ -40,11 +40,23 @@ impl Hotkey {
 
         parts.push(&self.key);
 
-        if cfg!(target_os = "macos") {
-            parts.join("")
-        } else {
-            parts.join("+")
+        parts.join(if cfg!(target_os = "macos") { "" } else { "+" })
+    }
+
+    /// Convert to tauri_plugin_global_shortcut format string
+    pub fn to_shortcut_string(&self) -> String {
+        let mut parts = Vec::new();
+        if self.ctrl || self.meta {
+            parts.push("CmdOrCtrl".to_string());
         }
+        if self.shift {
+            parts.push("Shift".to_string());
+        }
+        if self.alt {
+            parts.push("Alt".to_string());
+        }
+        parts.push(self.key.to_uppercase());
+        parts.join("+")
     }
 }
 
@@ -58,6 +70,7 @@ pub enum HotkeyAction {
     TranslateSelection,
     VoiceInput,
     KeyboardLock,
+    Screenshot,
 }
 
 impl HotkeyAction {
@@ -69,7 +82,31 @@ impl HotkeyAction {
             HotkeyAction::TranslateSelection => "Translate Selection",
             HotkeyAction::VoiceInput => "Voice Input",
             HotkeyAction::KeyboardLock => "Keyboard Lock",
+            HotkeyAction::Screenshot => "Screenshot",
         }
+    }
+
+    pub fn to_event_name(&self) -> &str {
+        match self {
+            HotkeyAction::ConvertLayout => "hotkey-convert",
+            HotkeyAction::ShowClipboard => "hotkey-clipboard",
+            HotkeyAction::EnhancePrompt => "hotkey-enhance",
+            HotkeyAction::TranslateSelection => "hotkey-translate",
+            HotkeyAction::VoiceInput => "hotkey-voice",
+            HotkeyAction::KeyboardLock => "hotkey-lock",
+            HotkeyAction::Screenshot => "hotkey-screenshot",
+        }
+    }
+
+    pub fn all() -> Vec<HotkeyAction> {
+        vec![
+            HotkeyAction::ConvertLayout,
+            HotkeyAction::ShowClipboard,
+            HotkeyAction::EnhancePrompt,
+            HotkeyAction::TranslateSelection,
+            HotkeyAction::Screenshot,
+            HotkeyAction::KeyboardLock,
+        ]
     }
 }
 
@@ -115,6 +152,10 @@ impl HotkeyManager {
         self.bindings.insert(
             HotkeyAction::KeyboardLock,
             Hotkey::new("k", use_ctrl, true, false, use_meta),
+        );
+        self.bindings.insert(
+            HotkeyAction::Screenshot,
+            Hotkey::new("s", use_ctrl, true, false, use_meta),
         );
     }
 

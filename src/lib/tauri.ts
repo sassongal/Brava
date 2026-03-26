@@ -41,6 +41,9 @@ export const readSystemClipboard = () =>
 export const writeSystemClipboard = (text: string) =>
   invoke<void>("write_system_clipboard", { text });
 
+export const writeImageToClipboard = (imagePath: string) =>
+  invoke<void>("write_image_to_clipboard", { imagePath });
+
 // Snippet commands
 export const getSnippets = () =>
   invoke<Snippet[]>("get_snippets");
@@ -124,6 +127,31 @@ export const toggleKeyboardLock = () =>
 export const getKeyboardLockStatus = () =>
   invoke<boolean>("get_keyboard_lock_status");
 
+// Hotkey commands
+export interface HotkeyBinding {
+  action: string;
+  action_display: string;
+  event_name: string;
+  key: string;
+  ctrl: boolean;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+  display_string: string;
+}
+
+export const getHotkeyBindings = () =>
+  invoke<HotkeyBinding[]>("get_hotkey_bindings");
+
+export const updateHotkey = (action: string, key: string, ctrl: boolean, shift: boolean, alt: boolean, meta: boolean) =>
+  invoke<void>("update_hotkey", { action, key, ctrl, shift, alt, meta });
+
+export const resetHotkeyDefaults = () =>
+  invoke<void>("reset_hotkey_defaults");
+
+export const takeScreenshot = () =>
+  invoke<string>("take_screenshot");
+
 // Types
 export interface ConversionResult {
   converted: string;
@@ -155,6 +183,7 @@ export interface ClipboardItem {
   accessed_at: string;
   access_count: number;
   source_app: string | null;
+  image_path: string | null;
 }
 
 export interface Snippet {

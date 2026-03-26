@@ -27,6 +27,10 @@ const translations = {
   "clip.cat.code": { en: "Code", he: "קוד" },
   "clip.cat.color": { en: "Colors", he: "צבעים" },
   "clip.cat.path": { en: "File Paths", he: "נתיבי קבצים" },
+  "clip.cat.image": { en: "Images", he: "תמונות" },
+
+  "screenshot.taken": { en: "Screenshot saved", he: "צילום מסך נשמר" },
+  "screenshot.failed": { en: "Screenshot failed", he: "צילום מסך נכשל" },
 
   // Converter
   "conv.title": { en: "Layout Converter", he: "המרת מקלדת" },
@@ -107,6 +111,19 @@ const translations = {
   "set.import": { en: "Import Settings", he: "ייבוא הגדרות" },
   "set.exportHint": { en: "Export copies settings JSON to clipboard. Import reads from clipboard.", he: "הייצוא מעתיק JSON של הגדרות ללוח. הייבוא קורא מהלוח." },
   "set.language": { en: "Language", he: "שפה" },
+  "set.shortcuts": { en: "Shortcuts", he: "קיצורים" },
+  "set.editShortcut": { en: "Edit", he: "ערוך" },
+  "set.pressShortcut": { en: "Press your new shortcut...", he: "הקש על הקיצור החדש..." },
+  "set.resetDefaults": { en: "Reset to Defaults", he: "איפוס לברירות מחדל" },
+  "set.shortcutConflict": { en: "Shortcut already in use", he: "הקיצור כבר בשימוש" },
+  "set.shortcutSaved": { en: "Shortcut updated", he: "הקיצור עודכן" },
+  "set.action.convert_layout": { en: "Convert Layout", he: "המר פריסה" },
+  "set.action.show_clipboard": { en: "Clipboard History", he: "היסטוריית לוח" },
+  "set.action.enhance_prompt": { en: "Enhance Prompt", he: "שפר פרומפט" },
+  "set.action.translate_selection": { en: "Translate Selection", he: "תרגם בחירה" },
+  "set.action.screenshot": { en: "Screenshot", he: "צילום מסך" },
+  "set.action.keyboard_lock": { en: "Keyboard Lock", he: "נעילת מקלדת" },
+  "set.action.voice_input": { en: "Voice Input", he: "קלט קולי" },
 
   // Onboarding
   "onb.welcome": { en: "Welcome to Brava", he: "ברוכים הבאים ל-Brava" },
