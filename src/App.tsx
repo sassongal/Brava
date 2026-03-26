@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard } from "./lib/tauri";
+import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard, type AppSettings } from "./lib/tauri";
 import { showToast } from "./components/Toast";
+import type { TranscriptionJobEvent } from "./lib/tauri";
 import { ClipboardHistory } from "./components/ClipboardHistory";
+import { QuickPaste } from "./components/QuickPaste";
+import { UniversalSearch } from "./components/UniversalSearch";
 import { SnippetManager } from "./components/SnippetManager";
 import { AITools } from "./components/AITools";
 import { LayoutConverter } from "./components/LayoutConverter";
@@ -15,12 +18,15 @@ import { useLocale, setLocale, initLocale } from "./lib/i18n";
 import { playConvertSound, playShutterSound } from "./lib/sounds";
 import logoMark from "./assets/brava-brand/logos/logo-mark.svg";
 
-type Tab = "clipboard" | "converter" | "snippets" | "ai" | "transcription" | "settings";
+type Tab = "clipboard" | "search" | "converter" | "snippets" | "ai" | "transcription" | "settings";
 
 function App() {
   const [locale, t] = useLocale();
   const [activeTab, setActiveTab] = useState<Tab>("clipboard");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [transcriptionBadgeCount, setTranscriptionBadgeCount] = useState(0);
+  const [quickPasteOpen, setQuickPasteOpen] = useState(false);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
   useEffect(() => {
     initLocale();
@@ -28,10 +34,15 @@ function App() {
     if (!hasOnboarded) {
       setShowOnboarding(true);
     }
+    void getSettings().then((s) => {
+      setAppSettings(s);
+      document.documentElement.style.fontSize = `${Math.round(16 * (s.ui_scale || 1))}px`;
+    }).catch(() => {});
   }, []);
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: "clipboard", label: t("app.clipboard"), icon: "" },
+    { id: "search", label: "Search", icon: "" },
     { id: "converter", label: t("app.converter"), icon: "" },
     { id: "snippets", label: t("app.snippets"), icon: "" },
     { id: "ai", label: t("app.ai"), icon: "" },
@@ -40,7 +51,7 @@ function App() {
   ];
 
   const navigate = useCallback((tab: string) => {
-    if (["clipboard", "converter", "snippets", "ai", "transcription", "settings"].includes(tab)) {
+    if (["clipboard", "search", "converter", "snippets", "ai", "transcription", "settings"].includes(tab)) {
       setActiveTab(tab as Tab);
     }
   }, []);
@@ -79,6 +90,10 @@ function App() {
       navigate("clipboard");
     }));
 
+    unsubs.push(listen("hotkey-quick-paste", () => {
+      setQuickPasteOpen(true);
+    }));
+
     unsubs.push(listen("hotkey-enhance", () => {
       navigate("ai");
     }));
@@ -99,8 +114,24 @@ function App() {
       }
     }));
 
+    unsubs.push(listen<TranscriptionJobEvent>("transcription-completed", (event) => {
+      const payload = event.payload;
+      if (activeTab !== "transcription") {
+        setTranscriptionBadgeCount((prev) => prev + 1);
+      }
+      if (appSettings?.notification_transcription_complete ?? true) {
+        showToast(`Transcription ready: ${payload.file_name}`, "success");
+      }
+    }));
+
     return () => { unsubs.forEach((u) => u.then((fn) => fn())); };
-  }, [navigate]);
+  }, [navigate, activeTab, appSettings]);
+
+  useEffect(() => {
+    if (activeTab === "transcription") {
+      setTranscriptionBadgeCount(0);
+    }
+  }, [activeTab]);
 
   const completeOnboarding = () => {
     localStorage.setItem("brava_onboarded", "true");
@@ -128,6 +159,12 @@ function App() {
     converter: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 5h12M14 5l-3-3M14 11H2M2 11l3 3"/>
+      </svg>
+    ),
+    search: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="7" cy="7" r="4.5"/>
+        <line x1="10.5" y1="10.5" x2="14" y2="14"/>
       </svg>
     ),
     snippets: (
@@ -174,6 +211,11 @@ function App() {
           >
             <span className="nav-tab-icon">{tabIcons[tab.id]}</span>
             {tab.label}
+            {tab.id === "transcription" && transcriptionBadgeCount > 0 && (
+              <span className="badge badge-url" style={{ marginLeft: 8, minWidth: 18, textAlign: "center" }}>
+                {transcriptionBadgeCount}
+              </span>
+            )}
           </button>
         ))}
         <div className="lang-toggle">
@@ -184,6 +226,7 @@ function App() {
 
       <main className="content">
         {activeTab === "clipboard" && <ClipboardHistory />}
+        {activeTab === "search" && <UniversalSearch />}
         {activeTab === "converter" && <LayoutConverter />}
         {activeTab === "snippets" && <SnippetManager />}
         {activeTab === "ai" && <AITools />}
@@ -193,6 +236,7 @@ function App() {
 
       <ToastContainer />
       <KeyboardLock />
+      <QuickPaste open={quickPasteOpen} onClose={() => setQuickPasteOpen(false)} />
     </div>
   );
 }

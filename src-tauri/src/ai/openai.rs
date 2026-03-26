@@ -104,7 +104,18 @@ impl OpenAIProvider {
             .await?;
 
         let status = response.status().as_u16();
-        let response_body: ChatResponse = response.json().await?;
+        let body_text = response.text().await?;
+        let response_body: ChatResponse = serde_json::from_str(&body_text).map_err(|_| {
+            AIError::Api {
+                status,
+                message: if body_text.is_empty() {
+                    "Provider returned empty response".to_string()
+                } else {
+                    let trimmed: String = body_text.chars().take(240).collect();
+                    format!("Provider returned non-JSON response: {}", trimmed)
+                },
+            }
+        })?;
 
         if let Some(error) = response_body.error {
             return Err(AIError::Api {

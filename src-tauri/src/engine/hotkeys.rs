@@ -66,6 +66,7 @@ impl Hotkey {
 pub enum HotkeyAction {
     ConvertLayout,
     ShowClipboard,
+    QuickPaste,
     EnhancePrompt,
     TranslateSelection,
     VoiceInput,
@@ -78,6 +79,7 @@ impl HotkeyAction {
         match self {
             HotkeyAction::ConvertLayout => "Convert Layout",
             HotkeyAction::ShowClipboard => "Clipboard History",
+            HotkeyAction::QuickPaste => "Quick Paste",
             HotkeyAction::EnhancePrompt => "Enhance Prompt",
             HotkeyAction::TranslateSelection => "Translate Selection",
             HotkeyAction::VoiceInput => "Voice Input",
@@ -90,6 +92,7 @@ impl HotkeyAction {
         match self {
             HotkeyAction::ConvertLayout => "hotkey-convert",
             HotkeyAction::ShowClipboard => "hotkey-clipboard",
+            HotkeyAction::QuickPaste => "hotkey-quick-paste",
             HotkeyAction::EnhancePrompt => "hotkey-enhance",
             HotkeyAction::TranslateSelection => "hotkey-translate",
             HotkeyAction::VoiceInput => "hotkey-voice",
@@ -104,6 +107,7 @@ impl HotkeyAction {
             HotkeyAction::ShowClipboard,
             HotkeyAction::EnhancePrompt,
             HotkeyAction::TranslateSelection,
+            HotkeyAction::QuickPaste,
             HotkeyAction::Screenshot,
             HotkeyAction::KeyboardLock,
             HotkeyAction::VoiceInput,
@@ -136,7 +140,11 @@ impl HotkeyManager {
         );
         self.bindings.insert(
             HotkeyAction::ShowClipboard,
-            Hotkey::new("v", use_ctrl, true, false, use_meta),
+            Hotkey::new("h", use_ctrl, true, false, use_meta),
+        );
+        self.bindings.insert(
+            HotkeyAction::QuickPaste,
+            Hotkey::new("q", use_ctrl, true, false, use_meta),
         );
         self.bindings.insert(
             HotkeyAction::EnhancePrompt,
@@ -172,7 +180,10 @@ impl HotkeyManager {
 
     /// Get all bindings for serialization/display
     pub fn get_all_bindings(&self) -> Vec<(HotkeyAction, Hotkey)> {
-        self.bindings.iter().map(|(a, h)| (a.clone(), h.clone())).collect()
+        HotkeyAction::all()
+            .into_iter()
+            .filter_map(|action| self.bindings.get(&action).cloned().map(|hotkey| (action, hotkey)))
+            .collect()
     }
 
     /// Load bindings from stored data

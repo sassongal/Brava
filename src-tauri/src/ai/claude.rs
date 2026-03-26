@@ -65,6 +65,10 @@ impl ClaudeProvider {
         self.api_key = Some(key);
     }
 
+    pub fn get_api_key(&self) -> Option<String> {
+        self.api_key.clone()
+    }
+
     pub async fn complete(&self, request: &AIRequest) -> Result<AIResponse, AIError> {
         let api_key = self.api_key.as_ref().ok_or(AIError::NoApiKey {
             provider: "Claude".to_string(),
@@ -95,7 +99,18 @@ impl ClaudeProvider {
             .await?;
 
         let status = response.status().as_u16();
-        let response_body: ClaudeResponse = response.json().await?;
+        let body_text = response.text().await?;
+        let response_body: ClaudeResponse = serde_json::from_str(&body_text).map_err(|_| {
+            AIError::Api {
+                status,
+                message: if body_text.is_empty() {
+                    "Provider returned empty response".to_string()
+                } else {
+                    let trimmed: String = body_text.chars().take(240).collect();
+                    format!("Provider returned non-JSON response: {}", trimmed)
+                },
+            }
+        })?;
 
         if let Some(error) = response_body.error {
             return Err(AIError::Api {

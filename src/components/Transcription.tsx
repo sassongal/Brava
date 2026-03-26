@@ -1,17 +1,62 @@
-import { useState } from "react";
-import { transcribeMedia, writeSystemClipboard, type TranscriptionResult } from "../lib/tauri";
+import { useEffect, useMemo, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import {
+  enqueueTranscription,
+  listTranscriptions,
+  writeSystemClipboard,
+  type TranscriptionJobEvent,
+  type TranscriptionJobRecord,
+} from "../lib/tauri";
 import { useLocale } from "../lib/i18n";
 import { showToast } from "./Toast";
 
 export function Transcription() {
   const [, t] = useLocale();
-  const [result, setResult] = useState<TranscriptionResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [jobs, setJobs] = useState<TranscriptionJobRecord[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [enqueuing, setEnqueuing] = useState(false);
   const [filePath, setFilePath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const refreshJobs = async () => {
+    setLoadingList(true);
+    try {
+      const data = await listTranscriptions(100, 0);
+      setJobs(data);
+    } catch (err) {
+      showToast(String(err), "error");
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshJobs();
+    let unlisten: (() => void) | null = null;
+    void listen<TranscriptionJobEvent>("transcription-job-updated", (event) => {
+      const payload = event.payload;
+      setJobs((prev) => {
+        const idx = prev.findIndex((j) => j.id === payload.id);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        next[idx] = {
+          ...next[idx],
+          status: payload.status,
+          error_message: payload.status === "failed" ? payload.message : next[idx].error_message,
+        };
+        return next;
+      });
+      void refreshJobs();
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
   const handleFileSelect = async () => {
-    if (loading) return;
+    if (enqueuing) return;
     // Use Tauri dialog to pick a file
     const { open: openDialog } = await import("@tauri-apps/plugin-dialog");
     const selected = await openDialog({
@@ -23,29 +68,32 @@ export function Transcription() {
     });
     if (selected) {
       setFilePath(selected as string);
-      handleTranscribe(selected as string);
+      await handleEnqueue(selected as string);
     }
   };
 
-  const handleTranscribe = async (path: string) => {
-    setLoading(true);
+  const handleEnqueue = async (path: string) => {
+    setEnqueuing(true);
     setError(null);
-    setResult(null);
     try {
-      const res = await transcribeMedia(path);
-      setResult(res);
-      showToast(t("trans.complete"), "success");
+      await enqueueTranscription(path);
+      showToast("Transcription queued", "success");
+      await refreshJobs();
     } catch (err) {
       setError(String(err));
       showToast(String(err), "error");
     }
-    setLoading(false);
+    setEnqueuing(false);
   };
 
-  const handleCopy = async () => {
-    if (!result) return;
+  const latestCompleted = useMemo(
+    () => jobs.find((job) => job.status === "completed" && job.text),
+    [jobs],
+  );
+
+  const handleCopy = async (text: string) => {
     try {
-      await writeSystemClipboard(result.text);
+      await writeSystemClipboard(text);
       showToast(t("clip.copied"), "success");
     } catch (err) {
       showToast(String(err), "error");
@@ -92,10 +140,10 @@ export function Transcription() {
       </div>
 
       {/* Loading */}
-      {loading && (
+      {(enqueuing || loadingList) && (
         <div className="card" style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px", marginBottom: "16px" }}>
           <div className="spinner" />
-          <span style={{ fontSize: 14 }}>{t("trans.transcribing")}</span>
+          <span style={{ fontSize: 14 }}>{enqueuing ? "Queueing transcription..." : "Loading transcriptions..."}</span>
         </div>
       )}
 
@@ -106,19 +154,19 @@ export function Transcription() {
         </div>
       )}
 
-      {/* Result */}
-      {result && (
+      {/* Latest result quick view */}
+      {latestCompleted && latestCompleted.text && (
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span className="badge badge-url" style={{ textTransform: "capitalize" }}>{result.language}</span>
-              {result.duration_seconds && (
+              <span className="badge badge-url" style={{ textTransform: "capitalize" }}>{latestCompleted.language ?? "unknown"}</span>
+              {latestCompleted.duration_seconds && (
                 <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
-                  {Math.floor(result.duration_seconds / 60)}:{String(Math.floor(result.duration_seconds % 60)).padStart(2, "0")}
+                  {Math.floor(latestCompleted.duration_seconds / 60)}:{String(Math.floor(latestCompleted.duration_seconds % 60)).padStart(2, "0")}
                 </span>
               )}
             </div>
-            <button className="btn btn-sm btn-primary" onClick={handleCopy}>
+            <button className="btn btn-sm btn-primary" onClick={() => handleCopy(latestCompleted.text!)}>
               {t("trans.copyText")}
             </button>
           </div>
@@ -132,10 +180,43 @@ export function Transcription() {
             maxHeight: "300px",
             overflow: "auto",
           }}>
-            {result.text}
+            {latestCompleted.text}
           </pre>
         </div>
       )}
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>History</div>
+        {jobs.length === 0 && <div style={{ fontSize: 13, color: "var(--text-tertiary)" }}>No transcriptions yet.</div>}
+        {jobs.map((job) => (
+          <div key={job.id} style={{ borderTop: "1px solid var(--border)", padding: "10px 0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {job.file_name}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                  {new Date(job.created_at).toLocaleString()}
+                </div>
+              </div>
+              <span className="badge badge-url" style={{ textTransform: "capitalize" }}>{job.status}</span>
+            </div>
+            {job.status === "failed" && job.error_message && (
+              <div style={{ fontSize: 12, color: "var(--error)", marginTop: 6 }}>{job.error_message}</div>
+            )}
+            {job.status === "completed" && job.text && (
+              <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {job.text.slice(0, 120)}
+                </div>
+                <button className="btn btn-sm btn-ghost" onClick={() => handleCopy(job.text ?? "")}>
+                  {t("trans.copyText")}
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

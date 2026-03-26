@@ -18,8 +18,11 @@ export function SnippetManager() {
   const [trigger, setTrigger] = useState("");
   const [content, setContent] = useState("");
   const [description, setDescription] = useState("");
+  const [folder, setFolder] = useState("");
+  const [isRegex, setIsRegex] = useState(false);
   const [preview, setPreview] = useState("");
   const [search, setSearch] = useState("");
+  const [folderFilter, setFolderFilter] = useState("");
 
   useEffect(() => {
     loadSnippets();
@@ -48,9 +51,16 @@ export function SnippetManager() {
 
     try {
       if (editingId) {
-        await updateSnippet(editingId, trigger, content, description || undefined);
+        await updateSnippet(
+          editingId,
+          trigger,
+          content,
+          description || undefined,
+          folder || null,
+          isRegex,
+        );
       } else {
-        await addSnippet(trigger, content, description || undefined);
+        await addSnippet(trigger, content, description || undefined, folder || undefined, isRegex);
       }
       showToast(editingId ? "Snippet updated" : "Snippet created", "success");
       resetForm();
@@ -66,6 +76,8 @@ export function SnippetManager() {
     setTrigger(snippet.trigger);
     setContent(snippet.content);
     setDescription(snippet.description || "");
+    setFolder(snippet.folder || "");
+    setIsRegex(snippet.is_regex);
     setShowForm(true);
     handlePreview(snippet.content);
   };
@@ -83,6 +95,8 @@ export function SnippetManager() {
     setTrigger("");
     setContent("");
     setDescription("");
+    setFolder("");
+    setIsRegex(false);
     setPreview("");
   };
 
@@ -100,8 +114,12 @@ export function SnippetManager() {
   const filteredSnippets = snippets.filter((s) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    return s.trigger.toLowerCase().includes(q) || s.content.toLowerCase().includes(q) || (s.description || "").toLowerCase().includes(q);
-  });
+    const inSearch = s.trigger.toLowerCase().includes(q) || s.content.toLowerCase().includes(q) || (s.description || "").toLowerCase().includes(q);
+    const inFolder = !folderFilter || (s.folder || "").toLowerCase() === folderFilter.toLowerCase();
+    return inSearch && inFolder;
+  }).filter((s) => !folderFilter || (s.folder || "").toLowerCase() === folderFilter.toLowerCase());
+
+  const folders = Array.from(new Set(snippets.map((s) => s.folder).filter(Boolean) as string[])).sort();
 
   return (
     <div>
@@ -121,11 +139,26 @@ export function SnippetManager() {
               </label>
               <input
                 className="input"
-                placeholder="e.g., /sig, //email, .addr"
+                placeholder={isRegex ? "e.g., date:(tomorrow|next week)" : "e.g., /sig, //email, .addr"}
                 value={trigger}
                 onChange={(e) => setTrigger(e.target.value)}
                 maxLength={20}
               />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
+                  Folder
+                </label>
+                <input className="input" placeholder="e.g., Email, Dev, Sales" value={folder} onChange={(e) => setFolder(e.target.value)} />
+              </div>
+              <div style={{ width: 180 }}>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
+                  Regex trigger
+                </label>
+                <button className={`toggle ${isRegex ? "active" : ""}`} onClick={() => setIsRegex(!isRegex)} />
+              </div>
             </div>
 
             <div>
@@ -211,6 +244,14 @@ export function SnippetManager() {
           <button className="btn-icon" onClick={() => setSearch("")}>{"\u{2715}"}</button>
         )}
       </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <select className="select" value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)}>
+          <option value="">All folders</option>
+          {folders.map((f) => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
+      </div>
 
       {filteredSnippets.length === 0 && snippets.length === 0 ? (
         <div className="empty-state">
@@ -239,6 +280,8 @@ export function SnippetManager() {
                   }}>
                     {snippet.trigger}
                   </code>
+                  {snippet.is_regex && <span className="badge badge-code" style={{ marginLeft: 6 }}>regex</span>}
+                  {snippet.folder && <span className="badge badge-url" style={{ marginLeft: 6 }}>{snippet.folder}</span>}
                   {snippet.description && (
                     <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>
                       {snippet.description}

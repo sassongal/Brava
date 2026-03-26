@@ -16,6 +16,8 @@ pub fn add_snippet(
     trigger: &str,
     content: &str,
     description: Option<&str>,
+    folder: Option<&str>,
+    is_regex: Option<bool>,
     state: State<'_, SnippetState>,
     db: State<'_, DatabaseState>,
 ) -> Snippet {
@@ -23,6 +25,8 @@ pub fn add_snippet(
         trigger.to_string(),
         content.to_string(),
         description.map(|s| s.to_string()),
+        folder.map(|s| s.to_string()),
+        is_regex.unwrap_or(false),
     );
     let result = snippet.clone();
     if let Err(e) = db.0.save_snippet(&result) {
@@ -39,6 +43,8 @@ pub fn update_snippet(
     trigger: Option<&str>,
     content: Option<&str>,
     description: Option<Option<&str>>,
+    folder: Option<Option<&str>>,
+    is_regex: Option<bool>,
     state: State<'_, SnippetState>,
     db: State<'_, DatabaseState>,
 ) -> Result<Snippet, String> {
@@ -49,6 +55,8 @@ pub fn update_snippet(
             trigger.map(|s| s.to_string()),
             content.map(|s| s.to_string()),
             description.map(|opt| opt.map(|s| s.to_string())),
+            folder.map(|opt| opt.map(|s| s.to_string())),
+            is_regex,
         )
         .cloned()
         .ok_or_else(|| "Snippet not found".to_string())?;

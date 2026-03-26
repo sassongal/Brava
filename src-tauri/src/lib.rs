@@ -9,6 +9,7 @@ use commands::clipboard::ClipboardState;
 use commands::layout::LayoutState;
 use commands::settings::SettingsState;
 use commands::snippets::SnippetState;
+use commands::transcription::TranscriptionQueueState;
 use engine::clipboard::ClipboardManager;
 use engine::layout::LayoutEngine;
 use engine::snippets::SnippetEngine;
@@ -60,12 +61,16 @@ pub fn run() {
                 Database::open(&app_data_dir)
                     .expect("Failed to open database")
             );
+            if let Err(e) = db.mark_stale_processing_jobs_failed() {
+                log::warn!("Failed to recover stale transcription jobs: {}", e);
+            }
 
             // Load settings from database
             let settings = AppSettings::load(&db);
 
             // Create clipboard manager and load history from database
             let clipboard_manager = Arc::new(ClipboardManager::new(settings.max_clipboard_items));
+            clipboard_manager.set_limits(settings.max_clipboard_items, settings.clipboard_preview_length);
             if let Ok(stored_items) = db.load_clipboard_history(settings.max_clipboard_items) {
                 if !stored_items.is_empty() {
                     log::info!("Loaded {} clipboard items from database", stored_items.len());
@@ -96,7 +101,8 @@ pub fn run() {
             }
             app.manage(SnippetState(Mutex::new(snippet_engine)));
             app.manage(ai_state);
-            app.manage(SettingsState(Mutex::new(settings)));
+            app.manage(SettingsState(Mutex::new(settings.clone())));
+            app.manage(TranscriptionQueueState::default());
             app.manage(CaffeineState {
                 inner: Mutex::new(CaffeineInner { active: false, process: None }),
             });
@@ -106,6 +112,11 @@ pub fn run() {
 
             // Setup system tray
             setup_tray(app)?;
+            if settings.start_minimized_to_tray {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
 
             // Create hotkey manager and load saved bindings
             let mut hotkey_manager = engine::hotkeys::HotkeyManager::new();
@@ -119,17 +130,35 @@ pub fn run() {
             {
                 use tauri::Emitter;
                 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+                use std::collections::HashSet;
+
+                let mut seen_shortcuts = HashSet::new();
 
                 for (action, hotkey) in hotkey_manager.get_all_bindings() {
                     let shortcut_str = hotkey.to_shortcut_string();
+                    if !seen_shortcuts.insert(shortcut_str.clone()) {
+                        log::warn!(
+                            "Skipping duplicate hotkey '{}' for action '{}'",
+                            shortcut_str,
+                            action.display_name()
+                        );
+                        continue;
+                    }
                     if let Ok(shortcut) = shortcut_str.parse::<Shortcut>() {
                         let handle = app.handle().clone();
                         let event = action.to_event_name().to_string();
-                        app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, e| {
+                        if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, e| {
                             if e.state == ShortcutState::Pressed {
                                 let _ = handle.emit(&event, ());
                             }
-                        })?;
+                        }) {
+                            log::warn!(
+                                "Failed to register hotkey '{}' for action '{}': {}",
+                                shortcut_str,
+                                action.display_name(),
+                                e
+                            );
+                        }
                     }
                 }
             }
@@ -181,6 +210,8 @@ pub fn run() {
             commands::ai::set_api_key,
             commands::ai::get_ai_models,
             commands::ai::get_ai_providers,
+            commands::ai::check_api_key_health,
+            commands::ai::ai_complete_stream,
             // Settings commands
             commands::settings::get_settings,
             commands::settings::update_settings,
@@ -190,6 +221,8 @@ pub fn run() {
             commands::settings::save_settings_to_db,
             commands::settings::export_settings,
             commands::settings::import_settings,
+            commands::settings::create_full_backup,
+            commands::settings::restore_full_backup,
             // Utility commands
             commands::settings::toggle_caffeine,
             commands::settings::get_caffeine_status,
@@ -208,6 +241,8 @@ pub fn run() {
             commands::screenshot::copy_screenshot_to_clipboard,
             // Transcription commands
             commands::transcription::transcribe_media,
+            commands::transcription::enqueue_transcription,
+            commands::transcription::list_transcriptions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Brava");
@@ -313,6 +348,7 @@ fn clipboard_monitor(
     manager: Arc<ClipboardManager>,
     db: Arc<Database>,
 ) {
+    use tauri::Manager;
     use tauri::Emitter;
 
     let mut clipboard = match arboard::Clipboard::new() {
@@ -328,6 +364,7 @@ fn clipboard_monitor(
     };
 
     let mut last_content = clipboard.get_text().unwrap_or_default();
+    let mut last_prune = std::time::Instant::now();
 
     loop {
         std::thread::sleep(Duration::from_millis(500));
@@ -358,6 +395,20 @@ fn clipboard_monitor(
                 log::error!("Failed to persist clipboard item: {}", e);
             }
             let _ = app.emit("clipboard-changed", &item);
+        }
+
+        if last_prune.elapsed() >= Duration::from_secs(1800) {
+            if let Some(settings_state) = app.try_state::<SettingsState>() {
+                if let Ok(settings) = settings_state.0.lock() {
+                    if let Some(days) = settings.clipboard_retention_days {
+                        if days > 0 {
+                            let _ = db.delete_clipboard_older_than_days(days);
+                            let _ = manager.remove_older_than_days(days);
+                        }
+                    }
+                }
+            }
+            last_prune = std::time::Instant::now();
         }
     }
 }

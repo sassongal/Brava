@@ -2,6 +2,8 @@ use crate::ai::provider::{AIModel, AIRequest, AIResponse};
 use crate::ai::{claude, gemini, ollama, openai, openrouter};
 use std::sync::Mutex;
 use tauri::State;
+use serde::Serialize;
+use tauri::Emitter;
 
 /// Holds all AI provider instances
 pub struct AIState {
@@ -78,6 +80,66 @@ pub async fn ai_complete(
         .unwrap_or_else(|| state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone());
 
     complete_with_provider(&active, &state, &request).await
+}
+
+#[derive(Serialize, Clone)]
+pub struct AiStreamChunkEvent {
+    pub request_id: String,
+    pub chunk: String,
+}
+
+#[derive(Serialize, Clone)]
+pub struct AiStreamDoneEvent {
+    pub request_id: String,
+    pub content: String,
+    pub provider: String,
+    pub model: String,
+}
+
+#[tauri::command]
+pub async fn ai_complete_stream(
+    prompt: &str,
+    system_prompt: Option<&str>,
+    provider: Option<&str>,
+    model: Option<&str>,
+    request_id: Option<&str>,
+    app: tauri::AppHandle,
+    state: State<'_, AIState>,
+) -> Result<String, String> {
+    let request = AIRequest {
+        prompt: prompt.to_string(),
+        system_prompt: system_prompt.map(|s| s.to_string()),
+        model: model.map(|s| s.to_string()),
+        max_tokens: Some(2048),
+        temperature: Some(0.7),
+    };
+    let active = provider
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone());
+    let rid = request_id
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let response = complete_with_provider(&active, &state, &request).await?;
+    for part in response.content.split_whitespace() {
+        let _ = app.emit(
+            "ai-stream-chunk",
+            AiStreamChunkEvent {
+                request_id: rid.clone(),
+                chunk: format!("{} ", part),
+            },
+        );
+    }
+    let _ = app.emit(
+        "ai-stream-done",
+        AiStreamDoneEvent {
+            request_id: rid.clone(),
+            content: response.content.clone(),
+            provider: response.provider.clone(),
+            model: response.model.clone(),
+        },
+    );
+    Ok(rid)
 }
 
 #[tauri::command]
@@ -194,4 +256,126 @@ pub fn get_ai_providers() -> Vec<serde_json::Value> {
         ]"#,
     )
     .expect("Invalid static JSON for AI providers")
+}
+
+#[derive(Serialize)]
+pub struct ApiKeyHealth {
+    pub status: String,
+    pub message: String,
+}
+
+#[tauri::command]
+pub async fn check_api_key_health(
+    provider: &str,
+    key: Option<&str>,
+    state: State<'_, AIState>,
+) -> Result<ApiKeyHealth, String> {
+    let provider_id = provider.to_lowercase();
+
+    let resolved_key = match provider_id.as_str() {
+        "gemini" => key
+            .map(|k| k.to_string())
+            .or_else(|| state.gemini.lock().ok().and_then(|p| p.get_api_key())),
+        "openai" => key
+            .map(|k| k.to_string())
+            .or_else(|| state.openai.lock().ok().and_then(|p| p.get_api_key())),
+        "claude" => key
+            .map(|k| k.to_string())
+            .or_else(|| state.claude.lock().ok().and_then(|p| p.get_api_key())),
+        "openrouter" => key
+            .map(|k| k.to_string())
+            .or_else(|| state.openrouter.lock().ok().and_then(|p| p.get_api_key())),
+        "ollama" => None,
+        _ => return Err(format!("Unknown provider: {}", provider)),
+    };
+
+    let timeout = std::time::Duration::from_secs(8);
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|e| format!("Failed to create client: {}", e))?;
+
+    if provider_id != "ollama" && resolved_key.as_deref().unwrap_or("").trim().is_empty() {
+        return Ok(ApiKeyHealth {
+            status: "missing".to_string(),
+            message: "No API key configured".to_string(),
+        });
+    }
+
+    let result = match provider_id.as_str() {
+        "openai" => {
+            client
+                .get("https://api.openai.com/v1/models")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", resolved_key.as_deref().unwrap_or_default()),
+                )
+                .send()
+                .await
+        }
+        "gemini" => {
+            client
+                .get(format!(
+                    "https://generativelanguage.googleapis.com/v1beta/models?key={}",
+                    resolved_key.as_deref().unwrap_or_default()
+                ))
+                .send()
+                .await
+        }
+        "claude" => {
+            client
+                .get("https://api.anthropic.com/v1/models")
+                .header("x-api-key", resolved_key.as_deref().unwrap_or_default())
+                .header("anthropic-version", "2023-06-01")
+                .send()
+                .await
+        }
+        "openrouter" => {
+            client
+                .get("https://openrouter.ai/api/v1/models")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", resolved_key.as_deref().unwrap_or_default()),
+                )
+                .send()
+                .await
+        }
+        "ollama" => {
+            let endpoint = state
+                .ollama
+                .lock()
+                .map_err(|e| e.to_string())?
+                .get_endpoint();
+            client
+                .get(format!("{}/api/tags", endpoint.trim_end_matches('/')))
+                .send()
+                .await
+        }
+        _ => unreachable!(),
+    };
+
+    match result {
+        Ok(resp) if resp.status().is_success() => Ok(ApiKeyHealth {
+            status: "valid".to_string(),
+            message: "Connection and credentials look good".to_string(),
+        }),
+        Ok(resp) if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 => {
+            Ok(ApiKeyHealth {
+                status: "invalid".to_string(),
+                message: "Credentials rejected by provider".to_string(),
+            })
+        }
+        Ok(resp) => Ok(ApiKeyHealth {
+            status: "check_failed".to_string(),
+            message: format!("Provider returned {}", resp.status()),
+        }),
+        Err(err) if err.is_timeout() || err.is_connect() => Ok(ApiKeyHealth {
+            status: "unreachable".to_string(),
+            message: "Provider is unreachable or timed out".to_string(),
+        }),
+        Err(err) => Ok(ApiKeyHealth {
+            status: "check_failed".to_string(),
+            message: format!("Health check failed: {}", err),
+        }),
+    }
 }

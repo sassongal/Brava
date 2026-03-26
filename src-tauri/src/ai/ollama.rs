@@ -56,6 +56,10 @@ impl OllamaProvider {
         self.endpoint = endpoint;
     }
 
+    pub fn get_endpoint(&self) -> String {
+        self.endpoint.clone()
+    }
+
     pub async fn complete(&self, request: &AIRequest) -> Result<AIResponse, AIError> {
         let model = request.model.as_deref().unwrap_or("llama3.2");
         let url = format!("{}/api/generate", self.endpoint);

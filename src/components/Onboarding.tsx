@@ -24,7 +24,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       const status = await checkPermissions();
       setPermissions(status);
     } catch {
-      setPermissions({ accessibility: false });
+      setPermissions({ accessibility: false, screen_recording: false });
     }
   }, []);
 
@@ -124,6 +124,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       desc: t("onb.perm.accessibilityDesc"),
       url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
       icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="4" r="2"/><path d="M12 6v6m-4-2l4 2 4-2m-8 4l4 6 4-6"/></svg>,
+    },
+    {
+      key: "screen_recording" as const,
+      label: "Screen Recording",
+      desc: "Required for fullscreen screenshot capture",
+      url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+      icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>,
     },
   ] : [];
 

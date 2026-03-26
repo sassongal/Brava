@@ -1,5 +1,6 @@
 use chrono::{Local, Utc};
 use serde::{Deserialize, Serialize};
+use regex::Regex;
 use std::collections::HashMap;
 
 /// A text snippet with trigger and expansion content
@@ -9,6 +10,9 @@ pub struct Snippet {
     pub trigger: String,
     pub content: String,
     pub description: Option<String>,
+    pub folder: Option<String>,
+    #[serde(default)]
+    pub is_regex: bool,
     pub enabled: bool,
     pub use_count: u32,
     pub created_at: String,
@@ -16,13 +20,21 @@ pub struct Snippet {
 }
 
 impl Snippet {
-    pub fn new(trigger: String, content: String, description: Option<String>) -> Self {
+    pub fn new(
+        trigger: String,
+        content: String,
+        description: Option<String>,
+        folder: Option<String>,
+        is_regex: bool,
+    ) -> Self {
         let now = Utc::now().to_rfc3339();
         Snippet {
             id: uuid::Uuid::new_v4().to_string(),
             trigger,
             content,
             description,
+            folder,
+            is_regex,
             enabled: true,
             use_count: 0,
             created_at: now.clone(),
@@ -77,7 +89,15 @@ impl SnippetEngine {
     }
 
     /// Update an existing snippet
-    pub fn update(&mut self, id: &str, trigger: Option<String>, content: Option<String>, description: Option<Option<String>>) -> Option<&Snippet> {
+    pub fn update(
+        &mut self,
+        id: &str,
+        trigger: Option<String>,
+        content: Option<String>,
+        description: Option<Option<String>>,
+        folder: Option<Option<String>>,
+        is_regex: Option<bool>,
+    ) -> Option<&Snippet> {
         if let Some(snippet) = self.snippets.get_mut(id) {
             if let Some(t) = trigger {
                 snippet.trigger = t;
@@ -87,6 +107,12 @@ impl SnippetEngine {
             }
             if let Some(d) = description {
                 snippet.description = d;
+            }
+            if let Some(f) = folder {
+                snippet.folder = f;
+            }
+            if let Some(v) = is_regex {
+                snippet.is_regex = v;
             }
             snippet.updated_at = Utc::now().to_rfc3339();
             self.rebuild_trie();
@@ -99,6 +125,18 @@ impl SnippetEngine {
     /// Look up a snippet by matching the end of a buffer against triggers.
     /// Returns the matched snippet if the buffer ends with a trigger.
     pub fn match_buffer(&self, buffer: &str) -> Option<&Snippet> {
+        let mut regex_match: Option<&Snippet> = None;
+        for s in self.snippets.values().filter(|s| s.enabled && s.is_regex) {
+            if let Ok(re) = Regex::new(&s.trigger) {
+                if re.is_match(buffer) {
+                    regex_match = Some(s);
+                }
+            }
+        }
+        if regex_match.is_some() {
+            return regex_match;
+        }
+
         // Try matching from each possible start position (longest match wins)
         let chars: Vec<char> = buffer.chars().collect();
         let mut best_match: Option<&str> = None;

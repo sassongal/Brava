@@ -5,8 +5,12 @@ use serde::{Deserialize, Serialize};
 pub struct AppSettings {
     // General
     pub launch_at_login: bool,
+    #[serde(default)]
+    pub start_minimized_to_tray: bool,
     pub theme: String, // "system", "light", "dark"
     pub language: String, // UI language
+    #[serde(default = "default_ui_scale")]
+    pub ui_scale: f32,
 
     // Layout conversion
     pub default_source_layout: String,
@@ -17,15 +21,23 @@ pub struct AppSettings {
     // Clipboard
     pub clipboard_enabled: bool,
     pub max_clipboard_items: usize,
+    #[serde(default = "default_clipboard_preview_length")]
+    pub clipboard_preview_length: usize,
+    #[serde(default)]
+    pub clipboard_retention_days: Option<u32>,
     pub auto_categorize: bool,
 
     // Snippets
     pub snippets_enabled: bool,
+    #[serde(default = "default_snippet_expansion_delay_ms")]
+    pub snippet_expansion_delay_ms: u32,
 
     // AI
     pub ai_provider: String, // "gemini", "openai", "claude", "openrouter", "ollama"
     pub ai_model: Option<String>,
     pub ollama_endpoint: String,
+    #[serde(default = "default_ai_output_language")]
+    pub ai_output_language: String,
 
     // Keyboard lock
     pub keyboard_lock_timer: Option<u32>, // seconds, None = manual unlock
@@ -40,18 +52,28 @@ pub struct AppSettings {
     // Sounds
     #[serde(default = "default_sounds_enabled")]
     pub sounds_enabled: bool,
+    #[serde(default = "default_notification_transcription_complete")]
+    pub notification_transcription_complete: bool,
 }
 
 fn default_sounds_enabled() -> bool {
     true
 }
 
+fn default_notification_transcription_complete() -> bool { true }
+fn default_ui_scale() -> f32 { 1.0 }
+fn default_clipboard_preview_length() -> usize { 200 }
+fn default_snippet_expansion_delay_ms() -> u32 { 120 }
+fn default_ai_output_language() -> String { "auto".to_string() }
+
 impl Default for AppSettings {
     fn default() -> Self {
         AppSettings {
             launch_at_login: false,
+            start_minimized_to_tray: false,
             theme: "system".to_string(),
             language: "en".to_string(),
+            ui_scale: 1.0,
 
             default_source_layout: "auto".to_string(),
             default_target_layout: "en".to_string(),
@@ -60,13 +82,17 @@ impl Default for AppSettings {
 
             clipboard_enabled: true,
             max_clipboard_items: 500,
+            clipboard_preview_length: 200,
+            clipboard_retention_days: None,
             auto_categorize: true,
 
             snippets_enabled: true,
+            snippet_expansion_delay_ms: 120,
 
             ai_provider: "gemini".to_string(),
             ai_model: None,
             ollama_endpoint: "http://localhost:11434".to_string(),
+            ai_output_language: "auto".to_string(),
 
             keyboard_lock_timer: None,
 
@@ -74,6 +100,7 @@ impl Default for AppSettings {
 
             grammar_enabled: false,
             sounds_enabled: true,
+            notification_transcription_complete: true,
         }
     }
 }

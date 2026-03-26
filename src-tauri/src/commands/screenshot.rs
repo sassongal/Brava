@@ -2,6 +2,8 @@ use crate::commands::clipboard::ClipboardState;
 use crate::DatabaseState;
 use serde::Deserialize;
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// Capture the full screen silently (no user interaction)
 #[tauri::command]
@@ -18,10 +20,24 @@ pub async fn capture_full_screen(app: tauri::AppHandle) -> Result<String, String
     let filepath_str = filepath.to_string_lossy().to_string();
 
     if cfg!(target_os = "macos") {
+        if !is_screen_recording_allowed() {
+            return Err("Screen Recording permission is required. Enable it in System Settings > Privacy & Security > Screen Recording.".to_string());
+        }
+        let mut hid_main = false;
+        if let Some(main) = app.get_webview_window("main") {
+            let _ = main.hide();
+            std::thread::sleep(Duration::from_millis(120));
+            hid_main = true;
+        }
         let status = std::process::Command::new("screencapture")
             .args(["-x", &filepath_str])
             .status()
             .map_err(|e| format!("Failed to capture screen: {}", e))?;
+        if hid_main {
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.show();
+            }
+        }
         if !status.success() {
             return Err("Screen capture failed".to_string());
         }
@@ -60,13 +76,16 @@ pub async fn capture_full_screen(app: tauri::AppHandle) -> Result<String, String
 
     Ok(filepath_str)
 }
-
 /// Open the screenshot editor window
 #[tauri::command]
 pub async fn open_screenshot_editor(
     app: tauri::AppHandle,
     image_path: String,
 ) -> Result<(), String> {
+    if let Some(existing) = app.get_webview_window("screenshot-editor") {
+        let _ = existing.close();
+        std::thread::sleep(Duration::from_millis(50));
+    }
     let url = format!("index.html?image={}", urlencoding::encode(&image_path));
     let _window = WebviewWindowBuilder::new(
         &app,
@@ -83,6 +102,19 @@ pub async fn open_screenshot_editor(
     .map_err(|e| format!("Failed to open screenshot editor: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn is_screen_recording_allowed() -> bool {
+    unsafe extern "C" {
+        fn CGPreflightScreenCaptureAccess() -> bool;
+    }
+    unsafe { CGPreflightScreenCaptureAccess() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_screen_recording_allowed() -> bool {
+    true
 }
 
 #[derive(Deserialize)]
@@ -108,23 +140,44 @@ pub async fn save_screenshot_region(
     let screenshots_dir = app.path().app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))?
         .join("screenshots");
+    std::fs::create_dir_all(&screenshots_dir)
+        .map_err(|e| format!("Failed to create screenshots dir: {}", e))?;
+    let validated_source = validate_path_in_screenshots_dir(&screenshots_dir, &source_path)?;
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S_%3f");
     let filename = format!("screenshot_{}.png", timestamp);
     let filepath = screenshots_dir.join(&filename);
     let filepath_str = filepath.to_string_lossy().to_string();
 
     if let Some(data_url) = annotated_data_url {
+        if data_url.len() > 30_000_000 {
+            return Err("Annotated image is too large".to_string());
+        }
         // Decode base64 data URL from canvas
         let base64_data = data_url
             .strip_prefix("data:image/png;base64,")
             .ok_or("Invalid data URL format")?;
         let bytes = base64_decode(base64_data)?;
+        if bytes.len() > 20_000_000 {
+            return Err("Annotated PNG exceeds size limit".to_string());
+        }
         std::fs::write(&filepath, bytes)
             .map_err(|e| format!("Failed to save screenshot: {}", e))?;
     } else {
         // Crop from source
-        let img = image::open(&source_path)
+        let img = image::open(&validated_source)
             .map_err(|e| format!("Failed to open source image: {}", e))?;
+        if region.width == 0 || region.height == 0 {
+            return Err("Invalid crop region size".to_string());
+        }
+        let max_w = img.width();
+        let max_h = img.height();
+        if region.x >= max_w
+            || region.y >= max_h
+            || region.x.saturating_add(region.width) > max_w
+            || region.y.saturating_add(region.height) > max_h
+        {
+            return Err("Crop region is out of image bounds".to_string());
+        }
         let cropped = image::imageops::crop_imm(
             &img, region.x, region.y, region.width, region.height,
         ).to_image();
@@ -133,7 +186,7 @@ pub async fn save_screenshot_region(
     }
 
     // Clean up temp full-screen capture
-    let _ = std::fs::remove_file(&source_path);
+    let _ = std::fs::remove_file(&validated_source);
 
     // Add to clipboard history
     if let Some(item) = clipboard_state.0.add_image(filepath_str.clone()) {
@@ -157,8 +210,15 @@ pub async fn cancel_screenshot(
     app: tauri::AppHandle,
     source_path: Option<String>,
 ) -> Result<(), String> {
+    let screenshots_dir = app.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?
+        .join("screenshots");
+    std::fs::create_dir_all(&screenshots_dir)
+        .map_err(|e| format!("Failed to create screenshots dir: {}", e))?;
     if let Some(path) = source_path {
-        let _ = std::fs::remove_file(&path);
+        if let Ok(validated) = validate_path_in_screenshots_dir(&screenshots_dir, &path) {
+            let _ = std::fs::remove_file(validated);
+        }
     }
     if let Some(window) = app.get_webview_window("screenshot-editor") {
         let _ = window.close();
@@ -171,10 +231,15 @@ pub async fn cancel_screenshot(
 pub fn copy_screenshot_to_clipboard(
     image_path: &str,
     clipboard_state: State<'_, ClipboardState>,
+    app: tauri::AppHandle,
 ) -> Result<(), String> {
     use image::GenericImageView;
+    let screenshots_dir = app.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?
+        .join("screenshots");
+    let validated_path = validate_path_in_screenshots_dir(&screenshots_dir, image_path)?;
 
-    let img = image::open(image_path)
+    let img = image::open(validated_path)
         .map_err(|e| format!("Failed to open image: {}", e))?;
     let rgba = img.to_rgba8();
     let (width, height) = img.dimensions();
@@ -212,4 +277,15 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
         }
     }
     Ok(output)
+}
+
+fn validate_path_in_screenshots_dir(base_dir: &Path, candidate: &str) -> Result<PathBuf, String> {
+    let canonical_base = std::fs::canonicalize(base_dir)
+        .map_err(|e| format!("Failed to resolve screenshots dir: {}", e))?;
+    let canonical_candidate = std::fs::canonicalize(candidate)
+        .map_err(|e| format!("Invalid screenshot path: {}", e))?;
+    if !canonical_candidate.starts_with(&canonical_base) {
+        return Err("Path must be within screenshots directory".to_string());
+    }
+    Ok(canonical_candidate)
 }

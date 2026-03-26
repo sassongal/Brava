@@ -6,11 +6,45 @@ type Tool = "select" | "arrow" | "rect" | "circle" | "draw" | "highlight" | "blu
 
 const COLORS = ["#BF4646", "#3D9970", "#3B82F6", "#F59E0B", "#8B5CF6", "#FFFFFF"];
 
+function mapSelectionToImageRegion(
+  selection: { x: number; y: number; w: number; h: number },
+  bgImg: HTMLImageElement,
+) {
+  const rect = bgImg.getBoundingClientRect();
+  const displayW = rect.width;
+  const displayH = rect.height;
+  const imgW = bgImg.naturalWidth || displayW;
+  const imgH = bgImg.naturalHeight || displayH;
+
+  const scale = Math.max(displayW / imgW, displayH / imgH);
+  const renderedW = imgW * scale;
+  const renderedH = imgH * scale;
+  const offsetX = (displayW - renderedW) / 2;
+  const offsetY = (displayH - renderedH) / 2;
+
+  const localX = selection.x - rect.left - offsetX;
+  const localY = selection.y - rect.top - offsetY;
+
+  const sx = Math.max(0, Math.min(imgW, localX / scale));
+  const sy = Math.max(0, Math.min(imgH, localY / scale));
+  const sw = Math.max(1, Math.min(imgW - sx, selection.w / scale));
+  const sh = Math.max(1, Math.min(imgH - sy, selection.h / scale));
+
+  return {
+    x: Math.round(sx),
+    y: Math.round(sy),
+    width: Math.max(1, Math.round(sw)),
+    height: Math.max(1, Math.round(sh)),
+  };
+}
+
 export function ScreenshotEditor() {
   // Parse image path from URL
   const params = new URLSearchParams(window.location.search);
   const imagePath = decodeURIComponent(params.get("image") || "");
   const imageUrl = convertFileSrc(imagePath);
+  const [imageReady, setImageReady] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   // State
   const [phase, setPhase] = useState<"selecting" | "annotating">("selecting");
@@ -171,7 +205,18 @@ export function ScreenshotEditor() {
           // Draw the selected region from the background image
           const bgImg = document.querySelector("#screenshot-bg") as HTMLImageElement;
           if (bgImg) {
-            cCtx.drawImage(bgImg, selection.x, selection.y, selection.w, selection.h, 0, 0, selection.w, selection.h);
+            const imageRegion = mapSelectionToImageRegion(selection, bgImg);
+            cCtx.drawImage(
+              bgImg,
+              imageRegion.x,
+              imageRegion.y,
+              imageRegion.width,
+              imageRegion.height,
+              0,
+              0,
+              selection.w,
+              selection.h,
+            );
           }
           // Draw annotations on top
           cCtx.drawImage(canvasRef.current, 0, 0);
@@ -180,7 +225,13 @@ export function ScreenshotEditor() {
       }
       const savedPath = await saveScreenshotRegion(
         imagePath,
-        { x: selection.x, y: selection.y, width: selection.w, height: selection.h },
+        (() => {
+          const bgImg = document.querySelector("#screenshot-bg") as HTMLImageElement | null;
+          if (!bgImg) {
+            return { x: selection.x, y: selection.y, width: selection.w, height: selection.h };
+          }
+          return mapSelectionToImageRegion(selection, bgImg);
+        })(),
         annotatedDataUrl,
       );
       // Also copy to clipboard
@@ -201,7 +252,18 @@ export function ScreenshotEditor() {
     if (cCtx) {
       const bgImg = document.querySelector("#screenshot-bg") as HTMLImageElement;
       if (bgImg) {
-        cCtx.drawImage(bgImg, selection.x, selection.y, selection.w, selection.h, 0, 0, selection.w, selection.h);
+        const imageRegion = mapSelectionToImageRegion(selection, bgImg);
+        cCtx.drawImage(
+          bgImg,
+          imageRegion.x,
+          imageRegion.y,
+          imageRegion.width,
+          imageRegion.height,
+          0,
+          0,
+          selection.w,
+          selection.h,
+        );
       }
       if (canvasRef.current) {
         cCtx.drawImage(canvasRef.current, 0, 0);
@@ -210,7 +272,13 @@ export function ScreenshotEditor() {
       const dataUrl = composite.toDataURL("image/png");
       const savedPath = await saveScreenshotRegion(
         imagePath,
-        { x: selection.x, y: selection.y, width: selection.w, height: selection.h },
+        (() => {
+          const bgImg = document.querySelector("#screenshot-bg") as HTMLImageElement | null;
+          if (!bgImg) {
+            return { x: selection.x, y: selection.y, width: selection.w, height: selection.h };
+          }
+          return mapSelectionToImageRegion(selection, bgImg);
+        })(),
         dataUrl,
       );
       await copyScreenshotToClipboard(savedPath);
@@ -230,11 +298,42 @@ export function ScreenshotEditor() {
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
     >
+      {(!imagePath || imageError) && (
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          background: "rgba(0,0,0,0.92)",
+          color: "#fff",
+          zIndex: 200,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "12px",
+        }}>
+          <h2 style={{ margin: 0, fontSize: "20px" }}>Screenshot failed to load</h2>
+          <p style={{ margin: 0, color: "#ccc", maxWidth: "520px", textAlign: "center" }}>
+            {imageError || "Invalid screenshot path. Please retry and ensure Screen Recording permission is granted on macOS."}
+          </p>
+          <button className="btn" onClick={() => { void cancelScreenshot(imagePath || undefined); }}>
+            Close
+          </button>
+        </div>
+      )}
+
       {/* Background: full screen capture, slightly dimmed */}
       <img
         id="screenshot-bg"
         src={imageUrl}
         alt=""
+        onLoad={() => {
+          setImageReady(true);
+          setImageError(null);
+        }}
+        onError={() => {
+          setImageReady(false);
+          setImageError("Could not open captured image. Check screenshot permissions and retry.");
+        }}
         style={{
           position: "absolute",
           inset: 0,
@@ -248,7 +347,7 @@ export function ScreenshotEditor() {
       />
 
       {/* Crosshair guides (only during selection phase) */}
-      {phase === "selecting" && !selecting && (
+      {imageReady && phase === "selecting" && !selecting && (
         <>
           <div style={{ position: "absolute", left: 0, right: 0, top: mousePos.y, height: 1, background: "rgba(191,70,70,0.6)", pointerEvents: "none" }} />
           <div style={{ position: "absolute", top: 0, bottom: 0, left: mousePos.x, width: 1, background: "rgba(191,70,70,0.6)", pointerEvents: "none" }} />
@@ -256,7 +355,7 @@ export function ScreenshotEditor() {
       )}
 
       {/* Magnifier */}
-      {phase === "selecting" && (
+      {imageReady && phase === "selecting" && (
         <div style={{
           position: "absolute",
           left: mousePos.x + 20,
@@ -291,7 +390,7 @@ export function ScreenshotEditor() {
       )}
 
       {/* Selection rectangle */}
-      {selection && (
+      {imageReady && selection && (
         <div style={{
           position: "absolute",
           left: selection.x,
@@ -322,7 +421,7 @@ export function ScreenshotEditor() {
       )}
 
       {/* Dimension label while selecting */}
-      {selecting && selection && selection.w > 0 && (
+      {imageReady && selecting && selection && selection.w > 0 && (
         <div style={{
           position: "absolute",
           left: selection.x + selection.w / 2 - 30,
@@ -341,7 +440,7 @@ export function ScreenshotEditor() {
       )}
 
       {/* Annotation canvas overlay */}
-      {phase === "annotating" && selection && (
+      {imageReady && phase === "annotating" && selection && (
         <canvas
           ref={canvasRef}
           style={{
@@ -468,7 +567,7 @@ export function ScreenshotEditor() {
       )}
 
       {/* Annotation Toolbar */}
-      {phase === "annotating" && selection && (
+      {imageReady && phase === "annotating" && selection && (
         <div style={{
           position: "absolute",
           left: selection.x,
@@ -563,7 +662,7 @@ export function ScreenshotEditor() {
       )}
 
       {/* Instructions */}
-      {phase === "selecting" && !selecting && (
+      {imageReady && phase === "selecting" && !selecting && (
         <div style={{
           position: "absolute",
           bottom: 40,

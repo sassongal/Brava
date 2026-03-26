@@ -48,11 +48,24 @@ export const writeImageToClipboard = (imagePath: string) =>
 export const getSnippets = () =>
   invoke<Snippet[]>("get_snippets");
 
-export const addSnippet = (trigger: string, content: string, description?: string) =>
-  invoke<Snippet>("add_snippet", { trigger, content, description });
+export const addSnippet = (
+  trigger: string,
+  content: string,
+  description?: string,
+  folder?: string,
+  isRegex?: boolean,
+) =>
+  invoke<Snippet>("add_snippet", { trigger, content, description, folder, isRegex });
 
-export const updateSnippet = (id: string, trigger?: string, content?: string, description?: string | null) =>
-  invoke<Snippet>("update_snippet", { id, trigger, content, description });
+export const updateSnippet = (
+  id: string,
+  trigger?: string,
+  content?: string,
+  description?: string | null,
+  folder?: string | null,
+  isRegex?: boolean,
+) =>
+  invoke<Snippet>("update_snippet", { id, trigger, content, description, folder, isRegex });
 
 export const deleteSnippet = (id: string) =>
   invoke<boolean>("delete_snippet", { id });
@@ -63,6 +76,14 @@ export const expandSnippetVariables = (content: string) =>
 // AI commands
 export const aiComplete = (prompt: string, systemPrompt?: string, provider?: string, model?: string) =>
   invoke<AIResponse>("ai_complete", { prompt, systemPrompt, provider, model });
+
+export const aiCompleteStream = (
+  prompt: string,
+  systemPrompt?: string,
+  provider?: string,
+  model?: string,
+  requestId?: string,
+) => invoke<string>("ai_complete_stream", { prompt, systemPrompt, provider, model, requestId });
 
 export const aiEnhancePrompt = (text: string) =>
   invoke<AIResponse>("ai_enhance_prompt", { text });
@@ -85,6 +106,9 @@ export const getAiModels = () =>
 export const getAiProviders = () =>
   invoke<AIProviderInfo[]>("get_ai_providers");
 
+export const checkApiKeyHealth = (provider: string, key?: string) =>
+  invoke<ApiKeyHealth>("check_api_key_health", { provider, key });
+
 // Settings commands
 export const getSettings = () =>
   invoke<AppSettings>("get_settings");
@@ -104,6 +128,7 @@ export const checkPermissions = () =>
 
 export interface PermissionStatus {
   accessibility: boolean;
+  screen_recording: boolean;
 }
 
 // Settings persistence commands
@@ -115,6 +140,12 @@ export const exportSettings = () =>
 
 export const importSettings = (json: string) =>
   invoke<void>("import_settings", { json });
+
+export const createFullBackup = (targetDir: string) =>
+  invoke<string>("create_full_backup", { targetDir });
+
+export const restoreFullBackup = (backupDir: string) =>
+  invoke<void>("restore_full_backup", { backupDir });
 
 // Caffeine commands
 export const toggleCaffeine = () =>
@@ -185,6 +216,32 @@ export interface TranscriptionResult {
 export const transcribeMedia = (filePath: string) =>
   invoke<TranscriptionResult>("transcribe_media", { filePath });
 
+export interface TranscriptionJobRecord {
+  id: string;
+  file_name: string;
+  file_path: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  text: string | null;
+  language: string | null;
+  duration_seconds: number | null;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface TranscriptionJobEvent {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  file_name: string;
+  message: string | null;
+}
+
+export const enqueueTranscription = (filePath: string) =>
+  invoke<{ job_id: string; status: string }>("enqueue_transcription", { filePath });
+
+export const listTranscriptions = (limit?: number, offset?: number) =>
+  invoke<TranscriptionJobRecord[]>("list_transcriptions", { limit, offset });
+
 // Types
 export interface ConversionResult {
   converted: string;
@@ -224,6 +281,8 @@ export interface Snippet {
   trigger: string;
   content: string;
   description: string | null;
+  folder: string | null;
+  is_regex: boolean;
   enabled: boolean;
   use_count: number;
   created_at: string;
@@ -251,25 +310,37 @@ export interface AIProviderInfo {
   has_free_tier: boolean;
 }
 
+export interface ApiKeyHealth {
+  status: "missing" | "checking" | "valid" | "invalid" | "unreachable" | "check_failed";
+  message: string;
+}
+
 export interface AppSettings {
   launch_at_login: boolean;
+  start_minimized_to_tray: boolean;
   theme: string;
   language: string;
+  ui_scale: number;
   default_source_layout: string;
   default_target_layout: string;
   auto_detect_layout: boolean;
   realtime_detection: boolean;
   clipboard_enabled: boolean;
   max_clipboard_items: number;
+  clipboard_preview_length: number;
+  clipboard_retention_days: number | null;
   auto_categorize: boolean;
   snippets_enabled: boolean;
+  snippet_expansion_delay_ms: number;
   ai_provider: string;
   ai_model: string | null;
   ollama_endpoint: string;
+  ai_output_language: string;
   keyboard_lock_timer: number | null;
   caffeine_enabled: boolean;
   grammar_enabled: boolean;
   sounds_enabled: boolean;
+  notification_transcription_complete: boolean;
 }
 
 export interface AppInfo {

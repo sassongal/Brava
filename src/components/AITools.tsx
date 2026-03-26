@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import {
   aiComplete,
+  aiCompleteStream,
   aiEnhancePrompt,
   aiTranslate,
   readSystemClipboard,
@@ -19,6 +21,7 @@ export function AITools() {
   const [output, setOutput] = useState<AIResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [streamMode, setStreamMode] = useState(true);
 
   // Translation
   const [sourceLang, setSourceLang] = useState("auto");
@@ -57,8 +60,46 @@ export function AITools() {
     setLoading(true);
     setError(null);
     try {
-      const result = await aiComplete(input);
-      setOutput(result);
+      if (!streamMode) {
+        const result = await aiComplete(input);
+        setOutput(result);
+      } else {
+        const requestId = crypto.randomUUID();
+        setOutput({ content: "", model: "streaming", provider: "streaming", tokens_used: null });
+        const unsubs: Array<() => void> = [];
+        let resolveDone: (() => void) | null = null;
+        const donePromise = new Promise<void>((resolve) => {
+          resolveDone = resolve;
+        });
+
+        const [unlistenChunk, unlistenDone] = await Promise.all([
+          listen<{ request_id: string; chunk: string }>("ai-stream-chunk", (event) => {
+            if (event.payload.request_id !== requestId) return;
+            setOutput((prev) => prev ? { ...prev, content: prev.content + event.payload.chunk } : prev);
+          }),
+          listen<{ request_id: string; content: string; provider: string; model: string }>("ai-stream-done", (event) => {
+            if (event.payload.request_id !== requestId) return;
+            setOutput((prev) => prev ? {
+              ...prev,
+              content: event.payload.content,
+              provider: event.payload.provider,
+              model: event.payload.model,
+            } : prev);
+            resolveDone?.();
+          }),
+        ]);
+        unsubs.push(unlistenChunk, unlistenDone);
+
+        try {
+          await aiCompleteStream(input, undefined, undefined, undefined, requestId);
+          await Promise.race([
+            donePromise,
+            new Promise<void>((resolve) => setTimeout(resolve, 30000)),
+          ]);
+        } finally {
+          unsubs.forEach((u) => u());
+        }
+      }
     } catch (err) {
       setError(String(err));
       showToast("AI request failed: " + String(err), "error");
@@ -132,6 +173,12 @@ export function AITools() {
           <select className="select" value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>
             {LANGUAGES.filter((l) => l !== "auto").map((l) => <option key={l} value={l}>{l}</option>)}
           </select>
+        </div>
+      )}
+      {activeTab === "freeform" && (
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 12, color: "var(--text-secondary)", marginRight: 8 }}>Stream mode (beta)</label>
+          <button className={`toggle ${streamMode ? "active" : ""}`} onClick={() => setStreamMode(!streamMode)} />
         </div>
       )}
 

@@ -9,16 +9,20 @@ import {
   saveSettingsToDb,
   exportSettings,
   importSettings,
+  createFullBackup,
+  restoreFullBackup,
   toggleCaffeine,
   getCaffeineStatus,
   toggleKeyboardLock,
   getHotkeyBindings,
   updateHotkey,
   resetHotkeyDefaults,
+  checkApiKeyHealth,
   type AppSettings,
   type AIProviderInfo,
   type AppInfo,
   type HotkeyBinding,
+  type ApiKeyHealth,
 } from "../lib/tauri";
 import { showToast } from "./Toast";
 import { useLocale, setLocale } from "../lib/i18n";
@@ -42,6 +46,8 @@ export function Settings() {
   const [openaiKey, setOpenaiKey] = useState("");
   const [claudeKey, setClaudeKey] = useState("");
   const [openrouterKey, setOpenrouterKey] = useState("");
+  const [keyHealth, setKeyHealth] = useState<Record<string, ApiKeyHealth>>({});
+  const [checking, setChecking] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     getSettings().then(setSettings).catch(console.error);
@@ -49,6 +55,43 @@ export function Settings() {
     getAppInfo().then(setAppInfo).catch(console.error);
     getCaffeineStatus().then(setCaffeineOn).catch(console.error);
     loadBindings();
+  }, []);
+
+  const healthLabel = (providerId: string) => {
+    if (checking[providerId]) return { text: "Checking...", color: "var(--accent)" };
+    const h = keyHealth[providerId];
+    if (!h) return { text: "Unknown", color: "var(--text-tertiary)" };
+    switch (h.status) {
+      case "valid": return { text: "Valid", color: "var(--success)" };
+      case "invalid": return { text: "Invalid", color: "var(--error)" };
+      case "missing": return { text: "Missing", color: "var(--warning)" };
+      case "unreachable": return { text: "Unreachable", color: "var(--warning)" };
+      default: return { text: "Check failed", color: "var(--error)" };
+    }
+  };
+
+  const runHealthCheck = async (provider: string, keyOverride?: string) => {
+    setChecking((prev) => ({ ...prev, [provider]: true }));
+    try {
+      const health = await checkApiKeyHealth(provider, keyOverride && keyOverride.trim() ? keyOverride : undefined);
+      setKeyHealth((prev) => ({ ...prev, [provider]: health }));
+      return health;
+    } catch (err) {
+      const fallback: ApiKeyHealth = {
+        status: "check_failed",
+        message: String(err),
+      };
+      setKeyHealth((prev) => ({ ...prev, [provider]: fallback }));
+      return fallback;
+    } finally {
+      setChecking((prev) => ({ ...prev, [provider]: false }));
+    }
+  };
+
+  useEffect(() => {
+    ["gemini", "openai", "claude", "openrouter", "ollama"].forEach((provider) => {
+      void runHealthCheck(provider);
+    });
   }, []);
 
   const loadBindings = () => {
@@ -87,6 +130,17 @@ export function Settings() {
     return () => window.removeEventListener("keydown", handler, true);
   }, [editingAction]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (geminiKey.trim()) void runHealthCheck("gemini", geminiKey);
+      if (openaiKey.trim()) void runHealthCheck("openai", openaiKey);
+      if (claudeKey.trim()) void runHealthCheck("claude", claudeKey);
+      if (openrouterKey.trim()) void runHealthCheck("openrouter", openrouterKey);
+      void runHealthCheck("ollama");
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [geminiKey, openaiKey, claudeKey, openrouterKey, settings?.ai_provider]);
+
   const handleSave = async () => {
     if (!settings) return;
     try {
@@ -99,6 +153,13 @@ export function Settings() {
       if (openrouterKey) await setApiKey("openrouter", openrouterKey);
 
       await setAiProvider(settings.ai_provider);
+      await Promise.all([
+        runHealthCheck("gemini"),
+        runHealthCheck("openai"),
+        runHealthCheck("claude"),
+        runHealthCheck("openrouter"),
+        runHealthCheck("ollama"),
+      ]);
       showToast("Settings saved", "success");
     } catch (err) {
       showToast("Failed to save settings: " + String(err), "error");
@@ -124,6 +185,32 @@ export function Settings() {
       showToast("Settings imported", "success");
     } catch (err) {
       showToast("Import failed: " + String(err), "error");
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({ directory: true, multiple: false });
+      if (!selected) return;
+      const backupPath = await createFullBackup(selected as string);
+      showToast(`Backup created: ${backupPath}`, "success");
+    } catch (err) {
+      showToast("Backup failed: " + String(err), "error");
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({ directory: true, multiple: false });
+      if (!selected) return;
+      await restoreFullBackup(selected as string);
+      const updated = await getSettings();
+      setSettings(updated);
+      showToast("Backup restored successfully", "success");
+    } catch (err) {
+      showToast("Restore failed: " + String(err), "error");
     }
   };
 
@@ -201,6 +288,14 @@ export function Settings() {
               <label>{t("set.launchAtLogin")}</label>
               <button className={`toggle ${settings.launch_at_login ? "active" : ""}`} onClick={() => updateField("launch_at_login", !settings.launch_at_login)} />
             </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+              <label>Start minimized to tray</label>
+              <button className={`toggle ${settings.start_minimized_to_tray ? "active" : ""}`} onClick={() => updateField("start_minimized_to_tray", !settings.start_minimized_to_tray)} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+              <label>UI Scale</label>
+              <input className="input" type="number" step={0.1} min={0.8} max={1.6} value={settings.ui_scale} onChange={(e) => updateField("ui_scale", Number(e.target.value) || 1)} style={{ width: "90px" }} />
+            </div>
           </div>
 
           <div className="card">
@@ -212,6 +307,14 @@ export function Settings() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <label>{t("set.maxItems")}</label>
               <input className="input" type="number" value={settings.max_clipboard_items} onChange={(e) => updateField("max_clipboard_items", parseInt(e.target.value) || 100)} style={{ width: "80px" }} min={10} max={1000} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <label>Preview length</label>
+              <input className="input" type="number" value={settings.clipboard_preview_length} onChange={(e) => updateField("clipboard_preview_length", parseInt(e.target.value) || 200)} style={{ width: "90px" }} min={20} max={2000} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <label>Auto-delete after days</label>
+              <input className="input" type="number" value={settings.clipboard_retention_days ?? ""} onChange={(e) => updateField("clipboard_retention_days", e.target.value ? parseInt(e.target.value) : null)} style={{ width: "90px" }} min={1} max={3650} placeholder="off" />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <label>{t("set.autoCategorize")}</label>
@@ -225,6 +328,10 @@ export function Settings() {
               <label>{t("set.enableSnippets")}</label>
               <button className={`toggle ${settings.snippets_enabled ? "active" : ""}`} onClick={() => updateField("snippets_enabled", !settings.snippets_enabled)} />
             </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+              <label>Expansion delay (ms)</label>
+              <input className="input" type="number" value={settings.snippet_expansion_delay_ms} onChange={(e) => updateField("snippet_expansion_delay_ms", parseInt(e.target.value) || 120)} style={{ width: "90px" }} min={0} max={5000} />
+            </div>
           </div>
 
           <div className="card">
@@ -235,6 +342,13 @@ export function Settings() {
                 <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>{t("set.soundsDesc")}</p>
               </div>
               <button className={`toggle ${soundsOn ? "active" : ""}`} onClick={() => { const next = !soundsOn; setSoundsOn(next); setSoundsEnabled(next); }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <div>
+                <label>Toast on transcription complete</label>
+                <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>Controls global completion notification</p>
+              </div>
+              <button className={`toggle ${settings.notification_transcription_complete ? "active" : ""}`} onClick={() => updateField("notification_transcription_complete", !settings.notification_transcription_complete)} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <div>
@@ -273,6 +387,14 @@ export function Settings() {
               ))}
             </select>
           </div>
+          <div className="card">
+            <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px" }}>AI Output Language</h3>
+            <select className="select" style={{ width: "100%" }} value={settings.ai_output_language} onChange={(e) => updateField("ai_output_language", e.target.value)}>
+              <option value="auto">Auto (match input)</option>
+              <option value="en">English</option>
+              <option value="he">Hebrew</option>
+            </select>
+          </div>
 
           {[
             { id: "gemini", name: "Google Gemini", key: geminiKey, setKey: setGeminiKey, hint: "Get a free key at aistudio.google.com" },
@@ -281,16 +403,52 @@ export function Settings() {
             { id: "openrouter", name: "OpenRouter", key: openrouterKey, setKey: setOpenrouterKey, hint: "Free models available at openrouter.ai" },
           ].map((provider) => (
             <div key={provider.id} className="card">
-              <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "8px" }}>{provider.name}</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <h3 style={{ fontSize: "14px", fontWeight: 600 }}>{provider.name}</h3>
+                <span style={{ fontSize: "12px", fontWeight: 600, color: healthLabel(provider.id).color }}>
+                  {healthLabel(provider.id).text}
+                </span>
+              </div>
               <input className="input" type="password" placeholder="API Key (saved in OS keychain)" value={provider.key} onChange={(e) => provider.setKey(e.target.value)} />
-              <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "4px" }}>{provider.hint}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", gap: "8px" }}>
+                <p style={{ fontSize: "11px", color: "var(--text-tertiary)", margin: 0, flex: 1 }}>{provider.hint}</p>
+                <button
+                  className="btn btn-sm"
+                  disabled={checking[provider.id]}
+                  onClick={() => void runHealthCheck(provider.id, provider.key)}
+                >
+                  {checking[provider.id] ? "Checking..." : "Test key"}
+                </button>
+              </div>
+              {keyHealth[provider.id]?.message && (
+                <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "6px" }}>
+                  {keyHealth[provider.id].message}
+                </p>
+              )}
             </div>
           ))}
 
           <div className="card">
-            <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "8px" }}>Ollama (Local)</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <h3 style={{ fontSize: "14px", fontWeight: 600 }}>Ollama (Local)</h3>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: healthLabel("ollama").color }}>
+                {healthLabel("ollama").text}
+              </span>
+            </div>
             <input className="input" placeholder="http://localhost:11434" value={settings.ollama_endpoint} onChange={(e) => updateField("ollama_endpoint", e.target.value)} />
-            <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "4px" }}>Free, private, runs on your machine. Install from ollama.com</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", gap: "8px" }}>
+              <p style={{ fontSize: "11px", color: "var(--text-tertiary)", margin: 0, flex: 1 }}>
+                Free, private, runs on your machine. Install from ollama.com
+              </p>
+              <button className="btn btn-sm" disabled={checking.ollama} onClick={() => void runHealthCheck("ollama")}>
+                {checking.ollama ? "Checking..." : "Test connection"}
+              </button>
+            </div>
+            {keyHealth.ollama?.message && (
+              <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "6px" }}>
+                {keyHealth.ollama.message}
+              </p>
+            )}
           </div>
 
           <button className="btn btn-primary" onClick={handleSave}>{t("set.save")}</button>
@@ -397,6 +555,8 @@ export function Settings() {
             <div style={{ display: "flex", gap: "8px" }}>
               <button className="btn" onClick={handleExport}>{"\u{1F4E4}"} {t("set.export")}</button>
               <button className="btn" onClick={handleImport}>{"\u{1F4E5}"} {t("set.import")}</button>
+              <button className="btn" onClick={handleCreateBackup}>{"\u{1F4BE}"} Full Backup</button>
+              <button className="btn" onClick={handleRestoreBackup}>{"\u{267B}\u{FE0F}"} Restore Backup</button>
             </div>
             <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "8px" }}>{t("set.exportHint")}</p>
           </div>

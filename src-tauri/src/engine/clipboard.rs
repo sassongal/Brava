@@ -43,9 +43,9 @@ pub struct ClipboardItem {
 }
 
 impl ClipboardItem {
-    pub fn new(content: String) -> Self {
+    pub fn new(content: String, preview_length: usize) -> Self {
         let hash = Self::compute_hash(&content);
-        let preview = content.chars().take(200).collect();
+        let preview = content.chars().take(preview_length.max(20).min(2000)).collect();
         let category = Self::categorize(&content);
 
         ClipboardItem {
@@ -148,7 +148,8 @@ impl ClipboardItem {
 /// Manages clipboard history with deduplication, search, and persistence
 pub struct ClipboardManager {
     items: Mutex<Vec<ClipboardItem>>,
-    max_items: usize,
+    max_items: Mutex<usize>,
+    preview_length: Mutex<usize>,
     last_hash: Mutex<String>,
     /// Hash of content we wrote to the system clipboard ourselves.
     /// The monitor thread checks this to avoid re-capturing our own writes.
@@ -159,10 +160,16 @@ impl ClipboardManager {
     pub fn new(max_items: usize) -> Self {
         ClipboardManager {
             items: Mutex::new(Vec::new()),
-            max_items,
+            max_items: Mutex::new(max_items),
+            preview_length: Mutex::new(200),
             last_hash: Mutex::new(String::new()),
             skip_hash: Mutex::new(None),
         }
+    }
+
+    pub fn set_limits(&self, max_items: usize, preview_length: usize) {
+        *self.max_items.lock().unwrap_or_else(|e| e.into_inner()) = max_items.max(10).min(5000);
+        *self.preview_length.lock().unwrap_or_else(|e| e.into_inner()) = preview_length.max(20).min(2000);
     }
 
     /// Mark content we're about to write to the system clipboard so the monitor skips it.
@@ -189,7 +196,8 @@ impl ClipboardManager {
         if content.len() > 1_048_576 {
             return None;
         }
-        let item = ClipboardItem::new(content);
+        let preview_len = *self.preview_length.lock().unwrap_or_else(|e| e.into_inner());
+        let item = ClipboardItem::new(content, preview_len);
 
         let mut last_hash = self.last_hash.lock().unwrap_or_else(|e| e.into_inner());
         if *last_hash == item.hash {
@@ -208,7 +216,8 @@ impl ClipboardManager {
         items.insert(0, item);
 
         // Trim to max, keeping pinned items
-        while items.len() > self.max_items {
+        let max_items = *self.max_items.lock().unwrap_or_else(|e| e.into_inner());
+        while items.len() > max_items {
             if let Some(pos) = items.iter().rposition(|i| !i.pinned) {
                 if pos > 0 {
                     items.remove(pos);
@@ -238,7 +247,8 @@ impl ClipboardManager {
         let result = item.clone();
         items.insert(0, item);
 
-        while items.len() > self.max_items {
+        let max_items = *self.max_items.lock().unwrap_or_else(|e| e.into_inner());
+        while items.len() > max_items {
             if let Some(pos) = items.iter().rposition(|i| !i.pinned) {
                 if pos > 0 { items.remove(pos); } else { break; }
             } else { break; }
@@ -314,6 +324,14 @@ impl ClipboardManager {
     pub fn clear(&self) {
         let mut items = self.items.lock().unwrap_or_else(|e| e.into_inner());
         items.retain(|i| i.pinned);
+    }
+
+    pub fn remove_older_than_days(&self, days: u32) -> usize {
+        let mut items = self.items.lock().unwrap_or_else(|e| e.into_inner());
+        let before = items.len();
+        let cutoff = Utc::now() - chrono::Duration::days(days as i64);
+        items.retain(|i| i.pinned || i.created_at >= cutoff);
+        before.saturating_sub(items.len())
     }
 
     /// Get total item count

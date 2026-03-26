@@ -32,6 +32,7 @@ export function ClipboardHistory() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -109,6 +110,29 @@ export function ClipboardHistory() {
     loadItems();
   };
 
+  const selectedItems = items.filter((i) => selectedIds.has(i.id));
+
+  const applyTransform = async (mode: "upper" | "lower" | "title" | "merge") => {
+    if (selectedItems.length === 0) return;
+    const texts = selectedItems.map((i) => i.content);
+    let out = "";
+    if (mode === "merge") {
+      out = texts.join("\n");
+    } else if (mode === "upper") {
+      out = texts.join("\n").toUpperCase();
+    } else if (mode === "lower") {
+      out = texts.join("\n").toLowerCase();
+    } else {
+      out = texts
+        .join("\n")
+        .split(/\s+/)
+        .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
+        .join(" ");
+    }
+    await writeSystemClipboard(out);
+    showToast("Result copied to clipboard", "success");
+  };
+
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
@@ -145,6 +169,13 @@ export function ClipboardHistory() {
             {t("clip.clearAll")}
           </button>
         </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <button className="btn btn-sm" disabled={selectedIds.size < 2} onClick={() => void applyTransform("merge")}>Merge</button>
+        <button className="btn btn-sm" disabled={selectedIds.size < 1} onClick={() => void applyTransform("upper")}>UPPER</button>
+        <button className="btn btn-sm" disabled={selectedIds.size < 1} onClick={() => void applyTransform("lower")}>lower</button>
+        <button className="btn btn-sm" disabled={selectedIds.size < 1} onClick={() => void applyTransform("title")}>Title Case</button>
       </div>
 
       <div className="search-bar">
@@ -195,6 +226,18 @@ export function ClipboardHistory() {
                       marginBottom: "4px",
                     }}
                   >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item.id)}
+                      onChange={(e) => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(item.id);
+                          else next.delete(item.id);
+                          return next;
+                        });
+                      }}
+                    />
                     <span className={`badge badge-${item.category}`}>
                       {CATEGORY_ICONS[item.category] || ""} {item.category}
                     </span>

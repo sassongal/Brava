@@ -1,6 +1,7 @@
 use crate::engine::clipboard::{ClipboardCategory, ClipboardItem, ClipboardManager};
 use crate::DatabaseState;
 use tauri::State;
+use tauri::Manager;
 use std::sync::Arc;
 
 pub struct ClipboardState(pub Arc<ClipboardManager>);
@@ -13,8 +14,10 @@ pub fn get_clipboard_items(
     offset: Option<usize>,
     state: State<'_, ClipboardState>,
 ) -> Vec<ClipboardItem> {
+    let bounded_limit = limit.unwrap_or(50).min(200);
+    let bounded_offset = offset.unwrap_or(0).min(10_000);
     let cat = category.and_then(|c| serde_json::from_str::<ClipboardCategory>(&format!("\"{}\"", c)).ok());
-    state.0.get_items(query, cat.as_ref(), limit.unwrap_or(50), offset.unwrap_or(0))
+    state.0.get_items(query, cat.as_ref(), bounded_limit, bounded_offset)
 }
 
 #[tauri::command]
@@ -94,10 +97,29 @@ pub fn write_system_clipboard(text: &str, state: State<'_, ClipboardState>) -> R
 
 /// Write an image file to the system clipboard
 #[tauri::command]
-pub fn write_image_to_clipboard(image_path: &str, state: State<'_, ClipboardState>) -> Result<(), String> {
+pub fn write_image_to_clipboard(
+    image_path: &str,
+    state: State<'_, ClipboardState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
     use image::GenericImageView;
+    let screenshots_dir = app.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?
+        .join("screenshots");
+    let canonical_base = std::fs::canonicalize(&screenshots_dir)
+        .map_err(|e| format!("Failed to resolve screenshots dir: {}", e))?;
+    let canonical_path = std::fs::canonicalize(image_path)
+        .map_err(|e| format!("Invalid image path: {}", e))?;
+    if !canonical_path.starts_with(canonical_base) {
+        return Err("Image path must be within screenshots directory".to_string());
+    }
+    let metadata = std::fs::metadata(&canonical_path)
+        .map_err(|e| format!("Failed to read image metadata: {}", e))?;
+    if metadata.len() > 20_000_000 {
+        return Err("Image is too large".to_string());
+    }
 
-    let img = image::open(image_path)
+    let img = image::open(canonical_path)
         .map_err(|e| format!("Failed to open image: {}", e))?;
     let rgba = img.to_rgba8();
     let (width, height) = img.dimensions();
