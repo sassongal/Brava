@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="he-IL">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Brava — Brand Guidelines v1.1 · מדריך מיתוג</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&family=Alef:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --crimson:#BF4646;--crimson-d:#9A3030;--crimson-l:#D96B6B;
+  --beige:#EDDCC6;--cream:#FFF4EA;--teal:#7EACB5;--teal-d:#5A8E99;
+  --ink:#2C1E1E;--ink-m:#5C4040;--ink-s:#9A7A7A;
+  --font-display:'Playfair Display',Georgia,serif;
+  --font-body:'DM Sans','Inter',system-ui,sans-serif;
+  --font-hebrew:'Alef',Arial,sans-serif;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font-body);background:var(--cream);color:var(--ink);line-height:1.6}
+a{color:var(--crimson);text-decoration:none}
+.he{font-family:var(--font-hebrew);direction:rtl;unicode-bidi:embed}
+#lang-toggle{position:fixed;top:14px;right:48px;z-index:200;display:flex;background:white;border:0.5px solid var(--beige);border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(44,30,30,0.08)}
+.lt-btn{padding:6px 14px;font-size:11px;font-weight:500;letter-spacing:0.06em;cursor:pointer;border:none;background:transparent;color:var(--ink-s);transition:all .15s}
+.lt-btn.active{background:var(--crimson);color:white}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,244,234,0.95);backdrop-filter:blur(8px);border-bottom:0.5px solid var(--beige);padding:0 48px;display:flex;align-items:center;justify-content:space-between;height:56px}
+.nav-logo{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--ink)}
+.nav-links{display:flex;gap:22px;font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-s)}
+.nav-links a:hover{color:var(--crimson)}
+.page{max-width:960px;margin:0 auto;padding:100px 48px 100px}
+section{margin-bottom:88px}
+.sec-eyebrow{font-size:11px;font-weight:500;letter-spacing:0.2em;text-transform:uppercase;color:var(--crimson);margin-bottom:10px}
+.sec-title{font-family:var(--font-display);font-size:36px;font-weight:700;color:var(--ink);margin-bottom:8px;line-height:1.1}
+.sec-sub{font-size:14px;color:var(--ink-s);font-weight:300;margin-bottom:40px;max-width:560px}
+hr{border:none;border-top:0.5px solid var(--beige);margin:80px 0}
+.bilingual-tag{display:inline-flex;align-items:center;gap:8px;background:rgba(126,172,181,0.12);border:0.5px solid rgba(126,172,181,0.3);border-radius:6px;padding:4px 12px;margin-bottom:28px}
+.bt-en{font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal-d)}
+.bt-sep{width:1px;height:14px;background:rgba(126,172,181,0.4)}
+.bt-he{font-family:var(--font-hebrew);font-size:12px;color:var(--teal-d);direction:rtl}
+/* COVER */
+.cover{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:120px 48px 80px;max-width:960px;margin:0 auto}
+.cover-eyebrow{font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:var(--crimson);font-weight:500;margin-bottom:20px}
+.cover-title{font-family:var(--font-display);font-size:80px;font-weight:700;color:var(--ink);line-height:0.95;letter-spacing:-0.03em;margin-bottom:12px}
+.cover-title span{color:var(--crimson)}
+.cover-title-he{font-family:var(--font-hebrew);font-size:52px;font-weight:700;color:var(--ink-s);direction:rtl;line-height:1.1;margin-bottom:24px;letter-spacing:0;opacity:0.35;transition:opacity .3s}
+.cover-sub{font-size:16px;color:var(--ink-m);font-weight:300;max-width:480px;line-height:1.7;margin-bottom:8px}
+.cover-sub-he{font-family:var(--font-hebrew);font-size:15px;color:var(--ink-s);direction:rtl;text-align:right;font-weight:400;max-width:480px;line-height:1.9;margin-bottom:32px;align-self:flex-end;opacity:0.5;transition:opacity .3s}
+.cover-meta{display:flex;gap:48px;padding-top:32px;border-top:0.5px solid var(--beige)}
+.cover-meta-item label{font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:var(--ink-s);font-weight:500;display:block;margin-bottom:4px}
+.cover-meta-item span{font-size:14px;color:var(--ink-m);font-weight:400}
+/* LOGO */
+.logo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.logo-card{border-radius:12px;padding:36px 24px 28px;display:flex;flex-direction:column;align-items:center;gap:18px;border:0.5px solid var(--beige)}
+.logo-card.cream{background:var(--cream)}.logo-card.crimson{background:var(--crimson)}.logo-card.dark{background:var(--ink)}
+.logo-label{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;font-weight:500;color:var(--ink-s)}
+.logo-card.crimson .logo-label,.logo-card.dark .logo-label{color:rgba(255,255,255,0.45)}
+.wm{font-family:var(--font-display);font-size:22px;font-weight:700;letter-spacing:0.04em}
+.donts{background:rgba(191,70,70,0.05);border:0.5px solid rgba(191,70,70,0.18);border-radius:10px;padding:20px 24px}
+.donts-title{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--crimson);margin-bottom:14px}
+.dont-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dont-item{font-size:12px;color:var(--ink-s);font-weight:300;padding-left:16px;position:relative}
+.dont-item::before{content:'✗';position:absolute;left:0;color:var(--crimson);font-size:10px;top:1px}
+/* COLOR */
+.palette{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+.swatch{border-radius:10px;overflow:hidden;border:0.5px solid rgba(0,0,0,0.06)}
+.sw-color{height:100px}
+.sw-info{padding:14px;background:white}
+.sw-name{font-size:13px;font-weight:500;color:var(--ink);margin-bottom:2px}
+.sw-name-he{font-family:var(--font-hebrew);font-size:12px;color:var(--ink-s);direction:rtl;margin-bottom:4px}
+.sw-hex{font-size:11px;font-family:monospace;color:var(--ink-s);letter-spacing:0.06em;margin-bottom:2px}
+.sw-role{font-size:10px;color:var(--ink-s);font-weight:300}
+.tints{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:28px}
+.tint{height:48px;border-radius:8px;border:0.5px solid rgba(0,0,0,0.06)}
+.tint-label{font-size:10px;color:var(--ink-s);margin-top:4px;text-align:center;font-family:monospace}
+.color-rules{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cr-card{background:white;border:0.5px solid var(--beige);border-radius:10px;padding:20px}
+.cr-title{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:12px}
+.cr-combo{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.cr-dot{width:36px;height:36px;border-radius:6px;flex-shrink:0}
+.cr-desc{font-size:11px;color:var(--ink-s);line-height:1.5}
+/* ENGLISH TYPE */
+.type-table{width:100%;border-collapse:collapse}
+.type-table th{font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-s);font-weight:500;text-align:left;padding:10px 0;border-bottom:0.5px solid var(--beige)}
+.type-table td{padding:18px 0;border-bottom:0.5px solid rgba(237,220,198,0.5);vertical-align:middle}
+.type-table td:first-child{width:170px}
+.type-meta-n{font-size:11px;font-weight:500;color:var(--crimson);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.06em}
+.type-meta-s{font-size:10px;color:var(--ink-s);font-weight:300;line-height:1.6}
+.t-d{font-family:var(--font-display);font-size:42px;font-weight:700;color:var(--ink);line-height:1}
+.t-di{font-family:var(--font-display);font-size:28px;font-style:italic;color:var(--crimson)}
+.t-h1{font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--ink)}
+.t-h2{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--ink)}
+.t-sh{font-size:16px;font-weight:500;color:var(--ink-m)}
+.t-b{font-size:14px;font-weight:300;color:var(--ink-m);line-height:1.7}
+.t-c{font-size:11px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--crimson)}
+/* HEBREW TYPE */
+.type-table-he{width:100%;border-collapse:collapse;direction:rtl}
+.type-table-he th{font-family:var(--font-hebrew);font-size:11px;color:var(--ink-s);font-weight:700;text-align:right;padding:10px 0;border-bottom:0.5px solid var(--beige);letter-spacing:0}
+.type-table-he td{padding:18px 0;border-bottom:0.5px solid rgba(237,220,198,0.5);vertical-align:middle;text-align:right}
+.type-table-he td:first-child{width:190px}
+.type-meta-n-he{font-family:var(--font-hebrew);font-size:12px;font-weight:700;color:var(--crimson);margin-bottom:3px}
+.type-meta-s-he{font-family:var(--font-hebrew);font-size:10px;color:var(--ink-s);font-weight:400;line-height:1.7}
+.th-d{font-family:var(--font-hebrew);font-size:42px;font-weight:700;color:var(--ink);line-height:1.1;direction:rtl}
+.th-h1{font-family:var(--font-hebrew);font-size:26px;font-weight:700;color:var(--ink);direction:rtl}
+.th-h2{font-family:var(--font-hebrew);font-size:20px;font-weight:700;color:var(--ink);direction:rtl}
+.th-sh{font-family:var(--font-hebrew);font-size:16px;font-weight:400;color:var(--ink-m);direction:rtl}
+.th-b{font-family:var(--font-hebrew);font-size:15px;font-weight:400;color:var(--ink-m);line-height:1.9;direction:rtl}
+.th-c{font-family:var(--font-hebrew);font-size:12px;font-weight:700;color:var(--crimson);direction:rtl}
+/* PAIR DEMO */
+.pair-demo{display:grid;grid-template-columns:1fr 0.5px 1fr;gap:0;border-radius:12px;overflow:hidden;border:0.5px solid var(--beige);margin-top:32px}
+.pair-en{background:white;padding:28px}
+.pair-he{background:var(--cream);padding:28px;direction:rtl;text-align:right}
+.pair-divider{background:var(--beige)}
+.pair-lang-tag{font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-s);margin-bottom:14px;display:block}
+.pair-lang-tag-he{font-family:var(--font-hebrew);font-size:11px;font-weight:700;color:var(--ink-s);margin-bottom:14px;display:block;direction:rtl}
+.pair-title-en{font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--ink);margin-bottom:8px}
+.pair-title-he{font-family:var(--font-hebrew);font-size:22px;font-weight:700;color:var(--ink);margin-bottom:8px;direction:rtl}
+.pair-body-en{font-size:13px;font-weight:300;color:var(--ink-s);line-height:1.7}
+.pair-body-he{font-family:var(--font-hebrew);font-size:14px;color:var(--ink-s);line-height:1.9;direction:rtl}
+/* RTL INFO */
+.rtl-info{background:rgba(126,172,181,0.08);border:0.5px solid rgba(126,172,181,0.3);border-radius:10px;padding:20px 24px;margin-top:28px}
+.rtl-info-title{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--teal-d);margin-bottom:12px}
+.rtl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rtl-item{font-size:12px;color:var(--ink-s);font-weight:300;line-height:1.6;padding-left:14px;position:relative}
+.rtl-item::before{content:'→';position:absolute;left:0;color:var(--teal);font-size:10px;top:2px}
+/* SPACING */
+.space-grid{display:flex;align-items:flex-end;gap:24px;padding:28px;background:white;border-radius:10px;border:0.5px solid var(--beige)}
+.sp{display:flex;flex-direction:column;align-items:center;gap:6px}
+.sp-bar{background:rgba(191,70,70,0.15);border-top:2px solid var(--crimson);width:44px}
+.sp-val{font-size:11px;font-weight:500;color:var(--ink-m)}
+.sp-tok{font-size:10px;color:var(--ink-s);font-family:monospace}
+.radius-grid{display:flex;gap:16px;flex-wrap:wrap;margin-top:24px}
+.rad-item{display:flex;flex-direction:column;align-items:center;gap:10px}
+.rad-box{width:56px;height:56px;background:rgba(191,70,70,0.12);border:1.5px solid var(--crimson)}
+.rad-label{font-size:10px;color:var(--ink-s);font-family:monospace;text-align:center}
+/* COMPONENTS */
+.comp-section{display:flex;flex-direction:column;gap:20px}
+.comp-card{background:white;border:0.5px solid var(--beige);border-radius:12px;padding:28px}
+.comp-name{font-size:10px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-s);margin-bottom:18px}
+.btn{font-family:var(--font-body);font-size:13px;font-weight:500;letter-spacing:0.04em;padding:10px 22px;border-radius:6px;border:none;cursor:pointer}
+.btn-he{font-family:var(--font-hebrew);font-size:14px;font-weight:400;letter-spacing:0;padding:10px 22px;border-radius:6px;border:none;cursor:pointer;direction:rtl}
+.btn-p{background:var(--crimson);color:white}
+.btn-o{background:transparent;color:var(--crimson);border:1.5px solid var(--crimson)}
+.btn-t{background:var(--teal);color:white}
+.btn-g{background:transparent;color:var(--ink-m);border:1px solid var(--beige)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:4px 10px;border-radius:20px;letter-spacing:0.04em}
+.badge-he{font-family:var(--font-hebrew);font-size:12px;font-weight:400;padding:4px 12px;border-radius:20px;direction:rtl;letter-spacing:0}
+.b-cr{background:rgba(191,70,70,0.12);color:var(--crimson-d)}
+.b-tl{background:rgba(126,172,181,0.18);color:var(--teal-d)}
+.b-bg{background:var(--beige);color:var(--ink-m)}
+.b-dk{background:var(--ink);color:var(--cream)}
+.input-w{width:250px}
+.input-label{font-size:11px;font-weight:500;color:var(--ink-m);margin-bottom:6px;display:block}
+.input-label-he{font-family:var(--font-hebrew);font-size:12px;color:var(--ink-m);margin-bottom:6px;display:block;direction:rtl;text-align:right}
+.input{width:100%;font-family:var(--font-body);font-size:13px;padding:9px 14px;border:1px solid var(--beige);border-radius:6px;background:white;color:var(--ink);outline:none}
+.input-he{width:100%;font-family:var(--font-hebrew);font-size:14px;padding:9px 14px;border:1px solid var(--beige);border-radius:6px;background:white;color:var(--ink);outline:none;direction:rtl;text-align:right}
+.input:focus,.input-he:focus{border-color:var(--crimson)}
+/* VOICE */
+.voice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.voice-card{background:white;border:0.5px solid var(--beige);border-radius:10px;padding:24px}
+.vc-title{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--ink);margin-bottom:3px}
+.vc-title-he{font-family:var(--font-hebrew);font-size:16px;font-weight:700;color:var(--ink-s);margin-bottom:10px;direction:rtl;text-align:right}
+.vc-desc{font-size:12px;color:var(--ink-s);font-weight:300;line-height:1.7;margin-bottom:10px}
+.vc-do{font-size:12px;color:#4a9a6a;font-weight:500;margin-bottom:3px}
+.vc-dt{font-size:12px;color:var(--crimson);font-weight:500;margin-bottom:3px}
+.vc-do-he{font-family:var(--font-hebrew);font-size:12px;color:#4a9a6a;direction:rtl;text-align:right;margin-bottom:2px}
+.vc-dt-he{font-family:var(--font-hebrew);font-size:12px;color:var(--crimson);direction:rtl;text-align:right}
+.vc-divider{height:0.5px;background:var(--beige);margin:10px 0}
+/* CODE */
+.code-block{background:var(--ink);border-radius:10px;padding:20px 24px;overflow-x:auto;margin-bottom:16px}
+.code-block code{font-family:'JetBrains Mono','Fira Code','Courier New',monospace;font-size:12px;color:#EDDCC6;line-height:1.7;white-space:pre}
+.impl-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.impl-card{background:white;border:0.5px solid var(--beige);border-radius:10px;padding:20px}
+.impl-title{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:8px}
+.impl-desc{font-size:12px;color:var(--ink-s);font-weight:300;line-height:1.6;margin-bottom:12px}
+.impl-file{font-size:11px;font-family:monospace;color:var(--crimson);background:rgba(191,70,70,0.06);padding:4px 10px;border-radius:4px;display:inline-block}
+@media print{nav,#lang-toggle{display:none}.cover{page-break-after:always}section{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<div id="lang-toggle">
+  <button class="lt-btn active" onclick="setLang('en')">EN</button>
+  <button class="lt-btn" onclick="setLang('he')">עב</button>
+</div>
+
+<nav>
+  <div class="nav-logo">
+    <svg width="22" height="22" viewBox="0 0 200 200"><rect width="200" height="200" rx="6" fill="#BF4646"/><path d="M38 24L38 176L112 176Q164 176 164 134Q164 108 140 98Q164 88 164 62Q164 24 112 24ZM68 52L104 52Q128 52 128 70Q128 88 104 88L68 88ZM68 112L108 112Q134 112 134 134Q134 156 108 156L68 156Z" fill="white"/><path d="M52 38L52 162L112 162Q148 162 148 134Q148 112 128 102Q148 92 148 62Q148 38 112 38ZM80 60L100 60Q118 60 118 72Q118 84 100 84L80 84ZM80 116L106 116Q122 116 122 134Q122 152 106 152L80 152Z" fill="#BF4646"/></svg>
+    Brava
+  </div>
+  <div class="nav-links">
+    <a href="#logo" data-en="Logo" data-he="לוגו">Logo</a>
+    <a href="#color" data-en="Color" data-he="צבעים">Color</a>
+    <a href="#en-type" data-en="EN Type" data-he="פונט EN">EN Type</a>
+    <a href="#he-type" data-en="HE Type ·א" data-he="פונט עב ·א">HE Type · א</a>
+    <a href="#spacing" data-en="Spacing" data-he="מרווחים">Spacing</a>
+    <a href="#components" data-en="Components" data-he="רכיבים">Components</a>
+    <a href="#voice" data-en="Voice" data-he="קול">Voice</a>
+    <a href="#dev" data-en="Dev" data-he="פיתוח">Dev</a>
+  </div>
+</nav>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-eyebrow" data-en="Brand Identity System" data-he="מערכת זהות מותג">Brand Identity System</div>
+  <div class="cover-title">Bra<span>v</span>a</div>
+  <div class="cover-title-he" id="cover-title-he">בּרָבָה</div>
+  <div class="cover-sub" data-en="A complete bilingual visual language — English and Hebrew. This document is the authoritative reference for all brand usage." data-he="מערכת ויזואלית דו-לשונית מלאה — אנגלית ועברית. מסמך זה הוא המקור הסמכותי לכל שימוש במותג.">A complete bilingual visual language — English and Hebrew. This document is the authoritative reference for all brand usage.</div>
+  <div class="cover-sub-he" id="cover-sub-he">מערכת ויזואלית דו-לשונית מלאה — אנגלית ועברית. מסמך זה הוא המקור הסמכותי לכל שימוש במותג.</div>
+  <div class="bilingual-tag">
+    <span class="bt-en">EN · English</span>
+    <span class="bt-sep"></span>
+    <span class="bt-he">עב · עברית</span>
+  </div>
+  <div class="cover-meta">
+    <div class="cover-meta-item"><label>Version</label><span>1.1</span></div>
+    <div class="cover-meta-item"><label>English Font</label><span>Playfair Display + DM Sans</span></div>
+    <div class="cover-meta-item"><label data-en="Hebrew Font" data-he="פונט עברי">Hebrew Font</label><span>Alef (אלף)</span></div>
+    <div class="cover-meta-item"><label>Primary Color</label><span>#BF4646</span></div>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- 01 LOGO -->
+<section id="logo">
+  <div class="sec-eyebrow" data-en="01 — Logo System" data-he="01 — מערכת לוגו">01 — Logo System</div>
+  <div class="sec-title" data-en="The Mark & Wordmark" data-he="הסמל והלוגוטייפ">The Mark & Wordmark</div>
+  <div class="sec-sub" data-en="The double-outline B mark is the core identity asset. The mark is language-neutral — use identically in Hebrew and English contexts." data-he="סמל ה-B הכפול הוא נכס הזהות המרכזי. הסמל ניטרלי מבחינת שפה — שימוש זהה בהקשרים עבריים ואנגליים.">The double-outline B mark is language-neutral — use identically in Hebrew and English contexts.</div>
+  <div class="logo-grid">
+    <div class="logo-card cream">
+      <svg width="64" height="64" viewBox="0 0 200 200"><path d="M38 24L38 176L112 176Q164 176 164 134Q164 108 140 98Q164 88 164 62Q164 24 112 24ZM68 52L104 52Q128 52 128 70Q128 88 104 88L68 88ZM68 112L108 112Q134 112 134 134Q134 156 108 156L68 156Z" fill="#BF4646"/><path d="M52 38L52 162L112 162Q148 162 148 134Q148 112 128 102Q148 92 148 62Q148 38 112 38ZM80 60L100 60Q118 60 118 72Q118 84 100 84L80 84ZM80 116L106 116Q122 116 122 134Q122 152 106 152L80 152Z" fill="#FFF4EA"/></svg>
+      <div class="wm" style="color:#2C1E1E">Brava</div>
+      <div class="logo-label" data-en="Primary · On Cream" data-he="ראשי · על קרם">Primary · On Cream</div>
+    </div>
+    <div class="logo-card crimson">
+      <svg width="64" height="64" viewBox="0 0 200 200"><path d="M38 24L38 176L112 176Q164 176 164 134Q164 108 140 98Q164 88 164 62Q164 24 112 24ZM68 52L104 52Q128 52 128 70Q128 88 104 88L68 88ZM68 112L108 112Q134 112 134 134Q134 156 108 156L68 156Z" fill="white"/><path d="M52 38L52 162L112 162Q148 162 148 134Q148 112 128 102Q148 92 148 62Q148 38 112 38ZM80 60L100 60Q118 60 118 72Q118 84 100 84L80 84ZM80 116L106 116Q122 116 122 134Q122 152 106 152L80 152Z" fill="#BF4646"/></svg>
+      <div class="wm" style="color:white">Brava</div>
+      <div class="logo-label" data-en="Reversed · On Crimson" data-he="הפוך · על ארגמן">Reversed · On Crimson</div>
+    </div>
+    <div class="logo-card dark">
+      <svg width="64" height="64" viewBox="0 0 200 200"><path d="M38 24L38 176L112 176Q164 176 164 134Q164 108 140 98Q164 88 164 62Q164 24 112 24ZM68 52L104 52Q128 52 128 70Q128 88 104 88L68 88ZM68 112L108 112Q134 112 134 134Q134 156 108 156L68 156Z" fill="#BF4646"/><path d="M52 38L52 162L112 162Q148 162 148 134Q148 112 128 102Q148 92 148 62Q148 38 112 38ZM80 60L100 60Q118 60 118 72Q118 84 100 84L80 84ZM80 116L106 116Q122 116 122 134Q122 152 106 152L80 152Z" fill="#2C1E1E"/></svg>
+      <div class="wm" style="color:#EDDCC6">Brava</div>
+      <div class="logo-label" data-en="Dark Mode · On Ink" data-he="מצב כהה · על דיו">Dark Mode · On Ink</div>
+    </div>
+  </div>
+  <div class="donts">
+    <div class="donts-title" data-en="Never do this with the logo" data-he="אין לעשות זאת עם הלוגו">Never do this with the logo</div>
+    <div class="dont-list">
+      <div class="dont-item" data-en="Recolor to non-brand colors" data-he="לצבוע בצבעים שאינם מותג">Recolor to non-brand colors</div>
+      <div class="dont-item" data-en="Stretch or distort proportions" data-he="למתוח או לעוות פרופורציות">Stretch or distort proportions</div>
+      <div class="dont-item" data-en="Use on low-contrast backgrounds" data-he="שימוש על רקעים בניגוד נמוך">Use on low-contrast backgrounds</div>
+      <div class="dont-item" data-en="Add shadows or visual effects" data-he="הוספת צלליות או אפקטים">Add shadows or visual effects</div>
+      <div class="dont-item" data-en="Use below 24px minimum" data-he="שימוש מתחת ל-24px">Use below 24px minimum</div>
+      <div class="dont-item" data-en="Recreate with different typefaces" data-he="לשחזר עם פונטים שונים">Recreate with different typefaces</div>
+    </div>
+  </div>
+</section>
+
+<hr/>
+
+<!-- 02 COLOR -->
+<section id="color">
+  <div class="sec-eyebrow" data-en="02 — Color Palette" data-he="02 — לוח צבעים">02 — Color Palette</div>
+  <div class="sec-title" data-en="Brand Colors" data-he="צבעי המותג">Brand Colors</div>
+  <div class="sec-sub" data-en="Four intentional colors, each with a precise role. Do not substitute. Use exact hex values." data-he="ארבעה צבעים מכוונים, לכל אחד תפקיד מדויק. אין להחליף. השתמשו בערכי hex מדויקים.">Four intentional colors, each with a precise role. Do not substitute.</div>
+  <div class="palette">
+    <div class="swatch"><div class="sw-color" style="background:#BF4646"></div><div class="sw-info"><div class="sw-name">Crimson</div><div class="sw-name-he">אדום-ארגמן</div><div class="sw-hex">#BF4646 · RGB 191 70 70</div><div class="sw-role">Primary · CTA · Logo</div></div></div>
+    <div class="swatch"><div class="sw-color" style="background:#EDDCC6"></div><div class="sw-info"><div class="sw-name">Warm Beige</div><div class="sw-name-he">בז' חמים</div><div class="sw-hex">#EDDCC6 · RGB 237 220 198</div><div class="sw-role">Secondary · Borders</div></div></div>
+    <div class="swatch"><div class="sw-color" style="background:#FFF4EA"></div><div class="sw-info"><div class="sw-name">Cream</div><div class="sw-name-he">שמנת</div><div class="sw-hex">#FFF4EA · RGB 255 244 234</div><div class="sw-role">Background · Surfaces</div></div></div>
+    <div class="swatch"><div class="sw-color" style="background:#7EACB5"></div><div class="sw-info"><div class="sw-name">Slate Teal</div><div class="sw-name-he">טורקיז-אפרפר</div><div class="sw-hex">#7EACB5 · RGB 126 172 181</div><div class="sw-role">Accent · Secondary</div></div></div>
+  </div>
+  <div style="font-size:11px;font-weight:500;color:var(--ink-s);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px" data-en="Extended Tints" data-he="גוונים מורחבים">Extended Tints</div>
+  <div class="tints">
+    <div><div class="tint" style="background:#9A3030"></div><div class="tint-label">#9A3030</div></div>
+    <div><div class="tint" style="background:#D96B6B"></div><div class="tint-label">#D96B6B</div></div>
+    <div><div class="tint" style="background:#5A8E99"></div><div class="tint-label">#5A8E99</div></div>
+    <div><div class="tint" style="background:#A4C8CF"></div><div class="tint-label">#A4C8CF</div></div>
+    <div><div class="tint" style="background:#2C1E1E"></div><div class="tint-label">#2C1E1E</div></div>
+    <div><div class="tint" style="background:#9A7A7A"></div><div class="tint-label">#9A7A7A</div></div>
+  </div>
+</section>
+
+<hr/>
+
+<!-- 03 ENGLISH TYPE -->
+<section id="en-type">
+  <div class="sec-eyebrow" data-en="03 — English Typography" data-he="03 — טיפוגרפיה אנגלית">03 — English Typography</div>
+  <div class="sec-title" data-en="English Type System" data-he="מערכת פונטים אנגלית">English Type System</div>
+  <div class="sec-sub" data-en="Playfair Display for voice and character. DM Sans for clarity and structure. Never swap these roles." data-he="Playfair Display לאישיות. DM Sans לבהירות. אין להחליף בין התפקידים.">Playfair Display for voice. DM Sans for clarity. Never swap these roles.</div>
+  <table class="type-table">
+    <thead><tr><th data-en="Role" data-he="תפקיד">Role</th><th data-en="Sample" data-he="דוגמה">Sample</th></tr></thead>
+    <tbody>
+      <tr><td><div class="type-meta-n">Display</div><div class="type-meta-s">Playfair Display 700<br/>48–80px · Hero only</div></td><td><div class="t-d">Built to Impress.</div></td></tr>
+      <tr><td><div class="type-meta-n">Display Italic</div><div class="type-meta-s">Playfair Display Italic<br/>28–36px · Quotes</div></td><td><div class="t-di">"The moment that changes everything."</div></td></tr>
+      <tr><td><div class="type-meta-n">Heading 1</div><div class="type-meta-s">Playfair Display 700<br/>24–32px</div></td><td><div class="t-h1">Why clients choose Brava.</div></td></tr>
+      <tr><td><div class="type-meta-n">Heading 2</div><div class="type-meta-s">Playfair Display 700<br/>18–22px</div></td><td><div class="t-h2">A system built for momentum.</div></td></tr>
+      <tr><td><div class="type-meta-n">Subheading</div><div class="type-meta-s">DM Sans 500 · 15–17px</div></td><td><div class="t-sh">Designed for teams who move fast.</div></td></tr>
+      <tr><td><div class="type-meta-n">Body</div><div class="type-meta-s">DM Sans 300 · 13–15px<br/>line-height 1.7</div></td><td><div class="t-b">We build tools that give your team an unfair advantage. Less friction, more momentum, better results — without the overhead.</div></td></tr>
+      <tr><td><div class="type-meta-n">Caption</div><div class="type-meta-s">DM Sans 500 · 10–11px<br/>+0.14em tracking</div></td><td><div class="t-c">Brand Strategy · Digital · 2025</div></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<hr/>
+
+<!-- 04 HEBREW TYPE -->
+<section id="he-type">
+  <div class="sec-eyebrow" data-en="04 — Hebrew Typography" data-he="04 — טיפוגרפיה עברית">04 — Hebrew Typography · אלף</div>
+  <div class="sec-title" data-en="Hebrew Type System · Alef (אלף)" data-he="מערכת פונטים עברית · אלף">Hebrew Type System · Alef (אלף)</div>
+  <div class="sec-sub" data-en="Alef is the exclusive Hebrew typeface for Brava. Clean, modern sans-serif optimized for Hebrew glyphs at all sizes." data-he="אלף הוא הגופן העברי הבלעדי של בראבה. Sans-serif נקי ומודרני, מותאם לאותיות עבריות בכל הגדלים.">Alef is the exclusive Hebrew typeface for Brava. Clean modern sans-serif, optimized for Hebrew glyphs at all sizes.</div>
+
+  <!-- Alef specimen -->
+  <div style="background:white;border:0.5px solid var(--beige);border-radius:12px;padding:36px;margin-bottom:28px">
+    <div style="font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-s);margin-bottom:20px">Alef · Typeface Specimen</div>
+    <div style="font-family:var(--font-hebrew);font-size:48px;font-weight:700;color:var(--ink);line-height:1.2;direction:rtl;text-align:right;margin-bottom:6px">א ב ג ד ה ו ז ח ט י כ ל</div>
+    <div style="font-family:var(--font-hebrew);font-size:48px;font-weight:400;color:var(--ink-s);line-height:1.2;direction:rtl;text-align:right;margin-bottom:20px">מ נ ס ע פ צ ק ר ש ת ך ם ן ף ץ</div>
+    <div style="height:0.5px;background:var(--beige);margin:16px 0"></div>
+    <div style="font-family:var(--font-hebrew);font-size:28px;font-weight:700;color:var(--ink);direction:rtl;text-align:right;margin-bottom:8px">כּוֹחַ. חֲמִימוּת. הַבְחָנָה.</div>
+    <div style="font-family:var(--font-hebrew);font-size:17px;font-weight:400;color:var(--ink-m);direction:rtl;text-align:right;line-height:1.9">מותג שנבנה לצמוח, לרגש, ולהשאיר רושם. בראבה מדברת עברית בביטחון.</div>
+    <div style="margin-top:16px;display:flex;gap:20px">
+      <div style="font-size:11px;color:var(--ink-s)">Alef Regular 400 — body, subheadings</div>
+      <div style="font-size:11px;font-weight:700;color:var(--ink-s)">Alef Bold 700 — headings, labels</div>
+    </div>
+  </div>
+
+  <table class="type-table-he">
+    <thead><tr><th>תפקיד</th><th>דוגמה</th></tr></thead>
+    <tbody>
+      <tr><td><div class="type-meta-n-he">כותרת ראשית</div><div class="type-meta-s-he">Alef Bold 700<br/>42–56px · דפי נחיתה</div></td><td><div class="th-d">בנינו כדי להרשים.</div></td></tr>
+      <tr><td><div class="type-meta-n-he">כותרת H1</div><div class="type-meta-s-he">Alef Bold 700 · 24–32px</div></td><td><div class="th-h1">למה לקוחות בוחרים בנו.</div></td></tr>
+      <tr><td><div class="type-meta-n-he">כותרת H2</div><div class="type-meta-s-he">Alef Bold 700 · 18–22px</div></td><td><div class="th-h2">מערכת שנבנתה לתנועה.</div></td></tr>
+      <tr><td><div class="type-meta-n-he">כותרת-משנה</div><div class="type-meta-s-he">Alef Regular 400 · 15–17px</div></td><td><div class="th-sh">עוצב עבור צוותים שזזים מהר ודורשים תוצאות.</div></td></tr>
+      <tr><td><div class="type-meta-n-he">גוף טקסט</div><div class="type-meta-s-he">Alef Regular 400 · 14–15px<br/>גובה שורה 1.9</div></td><td><div class="th-b">אנחנו בונים כלים ומערכות שנותנים לצוות שלך יתרון לא הוגן. פחות חיכוך, יותר תנופה, תוצאות טובות יותר.</div></td></tr>
+      <tr><td><div class="type-meta-n-he">כתובית / תגית</div><div class="type-meta-s-he">Alef Bold 700 · 11–12px</div></td><td><div class="th-c">אסטרטגיית מותג · דיגיטל · 2025</div></td></tr>
+    </tbody>
+  </table>
+
+  <!-- RTL rules -->
+  <div class="rtl-info">
+    <div class="rtl-info-title" data-en="Hebrew / RTL Implementation Rules" data-he="כללי יישום עברית / RTL">Hebrew / RTL Implementation Rules</div>
+    <div class="rtl-grid">
+      <div class="rtl-item"><code style="font-size:10px;background:rgba(0,0,0,0.05);padding:1px 4px;border-radius:3px">dir="rtl"</code> on every Hebrew container</div>
+      <div class="rtl-item"><code style="font-size:10px;background:rgba(0,0,0,0.05);padding:1px 4px;border-radius:3px">text-align: right</code> for all Hebrew body copy</div>
+      <div class="rtl-item">Line-height 1.8–2.0 for body text (Hebrew glyphs are taller)</div>
+      <div class="rtl-item"><code style="font-size:10px;background:rgba(0,0,0,0.05);padding:1px 4px;border-radius:3px">letter-spacing: 0</code> — always, Hebrew doesn't kern like Latin</div>
+      <div class="rtl-item">Never use Alef below weight 400 — no light variant in Hebrew</div>
+      <div class="rtl-item">Mirror icon positions: left-aligned icons become right-aligned in RTL</div>
+      <div class="rtl-item">Nav link order reverses in RTL — test both directions</div>
+      <div class="rtl-item"><code style="font-size:10px;background:rgba(0,0,0,0.05);padding:1px 4px;border-radius:3px">unicode-bidi: embed</code> for mixed-direction paragraphs</div>
+    </div>
+  </div>
+
+  <!-- Bilingual layout demo -->
+  <div style="font-size:11px;font-weight:500;color:var(--ink-s);text-transform:uppercase;letter-spacing:0.1em;margin:32px 0 14px" data-en="Bilingual layout example" data-he="דוגמת פריסה דו-לשונית">Bilingual layout example</div>
+  <div class="pair-demo">
+    <div class="pair-en">
+      <span class="pair-lang-tag">English · LTR</span>
+      <div class="pair-title-en">The Identity That Opens Doors</div>
+      <div style="height:0.5px;background:var(--beige);margin:12px 0"></div>
+      <div class="pair-body-en">Strong brands don't just look good — they communicate intent, build trust, and convert at higher rates. Brava systems are engineered for exactly that.</div>
+    </div>
+    <div class="pair-divider"></div>
+    <div class="pair-he">
+      <span class="pair-lang-tag-he">עברית · RTL</span>
+      <div class="pair-title-he">הזהות שפותחת דלתות</div>
+      <div style="height:0.5px;background:var(--beige);margin:12px 0"></div>
+      <div class="pair-body-he">מותגים חזקים לא רק נראים טוב — הם מתקשרים כוונה, בונים אמון, וממירים בשיעורים גבוהים יותר. מערכות בראבה מהונדסות בדיוק לשם כך.</div>
+    </div>
+  </div>
+</section>
+
+<hr/>
+
+<!-- 05 SPACING -->
+<section id="spacing">
+  <div class="sec-eyebrow" data-en="05 — Spacing & Layout" data-he="05 — מרווחים ופריסה">05 — Spacing & Layout</div>
+  <div class="sec-title" data-en="Spatial System" data-he="מערכת מרחב">Spatial System</div>
+  <div class="sec-sub" data-en="Base unit 8px. All spacings are multiples. RTL uses identical spacing values — only direction flips." data-he="יחידת בסיס 8px. כל המרווחים הם כפולות. RTL משתמש בערכי מרווח זהים — רק הכיוון מתהפך.">Base unit 8px. All spacings are multiples. RTL uses identical values — direction only flips.</div>
+  <div class="space-grid">
+    <div class="sp"><div class="sp-bar" style="height:8px"></div><div class="sp-val">8px</div><div class="sp-tok">xs</div></div>
+    <div class="sp"><div class="sp-bar" style="height:12px"></div><div class="sp-val">12px</div><div class="sp-tok">sm</div></div>
+    <div class="sp"><div class="sp-bar" style="height:16px"></div><div class="sp-val">16px</div><div class="sp-tok">md</div></div>
+    <div class="sp"><div class="sp-bar" style="height:24px"></div><div class="sp-val">24px</div><div class="sp-tok">lg</div></div>
+    <div class="sp"><div class="sp-bar" style="height:32px"></div><div class="sp-val">32px</div><div class="sp-tok">xl</div></div>
+    <div class="sp"><div class="sp-bar" style="height:48px"></div><div class="sp-val">48px</div><div class="sp-tok">2xl</div></div>
+    <div class="sp"><div class="sp-bar" style="height:64px"></div><div class="sp-val">64px</div><div class="sp-tok">3xl</div></div>
+    <div class="sp"><div class="sp-bar" style="height:80px"></div><div class="sp-val">80px</div><div class="sp-tok">4xl</div></div>
+  </div>
+  <div style="margin-top:28px;font-size:11px;font-weight:500;color:var(--ink-s);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px">Border Radius</div>
+  <div class="radius-grid">
+    <div class="rad-item"><div class="rad-box" style="border-radius:0"></div><div class="rad-label">0 · Sharp</div></div>
+    <div class="rad-item"><div class="rad-box" style="border-radius:4px"></div><div class="rad-label">4px · sm</div></div>
+    <div class="rad-item"><div class="rad-box" style="border-radius:6px"></div><div class="rad-label">6px · md</div></div>
+    <div class="rad-item"><div class="rad-box" style="border-radius:10px"></div><div class="rad-label">10px · lg</div></div>
+    <div class="rad-item"><div class="rad-box" style="border-radius:14px"></div><div class="rad-label">14px · xl</div></div>
+    <div class="rad-item"><div class="rad-box" style="border-radius:20px"></div><div class="rad-label">20px · 2xl</div></div>
+  </div>
+</section>
+
+<hr/>
+
+<!-- 06 COMPONENTS -->
+<section id="components">
+  <div class="sec-eyebrow" data-en="06 — UI Components" data-he="06 — רכיבי ממשק">06 — UI Components</div>
+  <div class="sec-title" data-en="Component Library" data-he="ספריית רכיבים">Component Library</div>
+  <div class="sec-sub" data-en="All components work LTR and RTL. Hebrew UI uses Alef; English uses DM Sans." data-he="כל הרכיבים עובדים LTR ו-RTL. ממשק עברי משתמש ב-Alef; אנגלית משתמשת ב-DM Sans.">All components work LTR and RTL. Hebrew UI uses Alef; English uses DM Sans.</div>
+  <div class="comp-section">
+    <div class="comp-card">
+      <div class="comp-name" data-en="Buttons · EN + HE" data-he="כפתורים · EN + HE">Buttons · EN + HE</div>
+      <div class="row" style="margin-bottom:14px">
+        <button class="btn btn-p">Get Started</button>
+        <button class="btn btn-o">Learn More</button>
+        <button class="btn btn-t">Connect</button>
+        <button class="btn btn-g">Cancel</button>
+      </div>
+      <div style="height:0.5px;background:var(--beige);margin:4px 0 14px"></div>
+      <div class="row">
+        <button class="btn-he btn-p">התחל עכשיו</button>
+        <button class="btn-he btn-o">למד עוד</button>
+        <button class="btn-he btn-t">צור קשר</button>
+        <button class="btn-he btn-g">ביטול</button>
+      </div>
+    </div>
+    <div class="comp-card">
+      <div class="comp-name" data-en="Badges · EN + HE" data-he="תגיות · EN + HE">Badges · EN + HE</div>
+      <div class="row" style="margin-bottom:12px">
+        <span class="badge b-cr">● Active</span>
+        <span class="badge b-tl">● New</span>
+        <span class="badge b-bg">Enterprise</span>
+        <span class="badge b-dk">Beta</span>
+      </div>
+      <div style="height:0.5px;background:var(--beige);margin:4px 0 12px"></div>
+      <div class="row">
+        <span class="badge-he b-cr">● פעיל</span>
+        <span class="badge-he b-tl">● חדש</span>
+        <span class="badge-he b-bg">ארגוני</span>
+        <span class="badge-he b-dk">בטא</span>
+      </div>
+    </div>
+    <div class="comp-card">
+      <div class="comp-name" data-en="Form Inputs · EN + HE" data-he="שדות טופס · EN + HE">Form Inputs · EN + HE</div>
+      <div class="row" style="align-items:flex-start;flex-wrap:wrap;gap:16px">
+        <div class="input-w"><label class="input-label">Full Name</label><input class="input" type="text" placeholder="Sarah Johnson"/></div>
+        <div class="input-w"><label class="input-label">Email</label><input class="input" type="email" placeholder="hello@brava.co"/></div>
+        <div class="input-w"><label class="input-label-he">שם מלא</label><input class="input-he" type="text" placeholder="שרה כהן"/></div>
+        <div class="input-w"><label class="input-label-he">אימייל</label><input class="input-he" type="email" placeholder="שלום@brava.co"/></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr/>
+
+<!-- 07 VOICE -->
+<section id="voice">
+  <div class="sec-eyebrow" data-en="07 — Brand Voice" data-he="07 — קול המותג">07 — Brand Voice</div>
+  <div class="sec-title" data-en="Tone & Personality" data-he="טון ואישיות">Tone & Personality</div>
+  <div class="sec-sub" data-en="Identical principles in Hebrew and English. Brava speaks with the same confidence in both languages." data-he="עקרונות זהים בעברית ובאנגלית. בראבה מדברת באותה ביטחון בשתי השפות.">Identical principles in Hebrew and English. Same confidence, both languages.</div>
+  <div class="voice-grid">
+    <div class="voice-card">
+      <div class="vc-title">Confident</div>
+      <div class="vc-title-he">בטוח</div>
+      <div class="vc-desc">Direct, assured. No hedging. Brava knows the answer.</div>
+      <div class="vc-divider"></div>
+      <div class="vc-do">✓ "Here's what works."</div>
+      <div class="vc-do-he">✓ "הנה מה שעובד."</div>
+      <div class="vc-dt">✗ "This might possibly help..."</div>
+      <div class="vc-dt-he">✗ "אולי זה יכול לעזור..."</div>
+    </div>
+    <div class="voice-card">
+      <div class="vc-title">Warm</div>
+      <div class="vc-title-he">חמים</div>
+      <div class="vc-desc">Human first. Empathetic, never cold or corporate.</div>
+      <div class="vc-divider"></div>
+      <div class="vc-do">✓ "We understand the pressure."</div>
+      <div class="vc-do-he">✓ "אנחנו מבינים את הלחץ."</div>
+      <div class="vc-dt">✗ "As per your requirements."</div>
+      <div class="vc-dt-he">✗ "בהתאם לדרישותיכם."</div>
+    </div>
+    <div class="voice-card">
+      <div class="vc-title">Sharp</div>
+      <div class="vc-title-he">חד</div>
+      <div class="vc-desc">Precise. Every word earns its place.</div>
+      <div class="vc-divider"></div>
+      <div class="vc-do">✓ "3× faster results."</div>
+      <div class="vc-do-he">✓ "תוצאות מהירות פי 3."</div>
+      <div class="vc-dt">✗ "Potentially improved outcomes."</div>
+      <div class="vc-dt-he">✗ "תוצאות שעשויות להשתפר."</div>
+    </div>
+  </div>
+</section>
+
+<hr/>
+
+<!-- 08 DEV -->
+<section id="dev">
+  <div class="sec-eyebrow" data-en="08 — Implementation" data-he="08 — יישום">08 — Implementation</div>
+  <div class="sec-title" data-en="Dev Handoff" data-he="העברה לפיתוח">Dev Handoff</div>
+  <div class="sec-sub" data-en="Drop-in snippets for web, React, and Flutter. Hebrew RTL support baked into every pattern." data-he="קטעי קוד מוכנים לאינטרנט, React ו-Flutter. תמיכת RTL בעברית בכל תבנית.">Drop-in snippets for web, React, and Flutter. Hebrew RTL support baked into every pattern.</div>
+
+  <div style="margin-bottom:20px">
+    <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:10px" data-en="Font import — Playfair Display + DM Sans + Alef" data-he="ייבוא פונטים">Font import — Playfair Display + DM Sans + Alef</div>
+    <div class="code-block"><code>&lt;link href="https://fonts.googleapis.com/css2?
+  family=Playfair+Display:ital,wght@0,400;0,700;1,400
+  &amp;family=DM+Sans:wght@300;400;500
+  &amp;family=Alef:wght@400;700
+  &amp;display=swap" rel="stylesheet"/&gt;</code></div>
+  </div>
+
+  <div style="margin-bottom:20px">
+    <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:10px">CSS — Hebrew utility class</div>
+    <div class="code-block"><code>/* Drop on any Hebrew container */
+.he {
+  font-family: 'Alef', Arial, sans-serif;
+  direction: rtl;
+  unicode-bidi: embed;
+  text-align: right;
+  letter-spacing: 0;
+  line-height: 1.9;
+}
+.he h1, .he h2, .he h3 { font-weight: 700; }
+.he p, .he li, .he span { font-weight: 400; }
+
+/* RTL button group */
+.btn-group[dir="rtl"] { flex-direction: row-reverse; }
+
+/* tokens.css already includes: */
+/* --font-hebrew: 'Alef', Arial, sans-serif; */</code></div>
+  </div>
+
+  <div style="margin-bottom:20px">
+    <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:10px">React — bilingual text component</div>
+    <div class="code-block"><code>const BravaText = ({ children, lang = 'en', variant = 'body' }) => {
+  const isHe = lang === 'he';
+  const styles = {
+    fontFamily: isHe ? "'Alef', sans-serif" : "'DM Sans', sans-serif",
+    direction: isHe ? 'rtl' : 'ltr',
+    textAlign: isHe ? 'right' : 'left',
+    lineHeight: isHe ? 1.9 : 1.7,
+    letterSpacing: isHe ? 0 : undefined,
+    fontWeight: isHe ? 400 : 300,
+  };
+  return &lt;p style={styles}&gt;{children}&lt;/p&gt;;
+};
+
+// Usage:
+// &lt;BravaText lang="he"&gt;שלום עולם&lt;/BravaText&gt;
+// &lt;BravaText lang="en"&gt;Hello world&lt;/BravaText&gt;</code></div>
+  </div>
+
+  <div style="margin-bottom:28px">
+    <div style="font-size:12px;font-weight:500;color:var(--ink);margin-bottom:10px">Flutter — RTL + Alef setup</div>
+    <div class="code-block"><code># pubspec.yaml
+flutter:
+  fonts:
+    - family: Alef
+      fonts:
+        - asset: assets/fonts/Alef-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Alef-Bold.ttf
+          weight: 700
+
+# main.dart — RTL support
+MaterialApp(
+  locale: const Locale('he', 'IL'),
+  supportedLocales: [Locale('en'), Locale('he', 'IL')],
+  localizationsDelegates: GlobalMaterialLocalizations.delegates,
+  theme: ThemeData(
+    fontFamily: 'Alef',         // Hebrew default
+    textTheme: TextTheme(
+      bodyMedium: TextStyle(
+        fontFamily: 'Alef',
+        height: 1.9,
+        letterSpacing: 0,
+      ),
+    ),
+  ),
+)
+
+# Per-widget direction:
+# Directionality(
+#   textDirection: TextDirection.rtl,
+#   child: Text('שלום', style: TextStyle(fontFamily: 'Alef')),
+# )</code></div>
+  </div>
+
+  <div class="impl-grid">
+    <div class="impl-card"><div class="impl-title">Favicons / Web</div><div class="impl-desc">Full PNG set, SVG, ICO, Apple Touch, Android Chrome, OG image, webmanifest, browserconfig.</div><div class="impl-file">brava-brand/favicons/</div></div>
+    <div class="impl-card"><div class="impl-title">App Icons</div><div class="impl-desc">All iOS + Android sizes 20px → 1024px. Rounded for App Store submission.</div><div class="impl-file">brava-brand/icons/</div></div>
+    <div class="impl-card"><div class="impl-title">Design Tokens</div><div class="impl-desc">tokens.css with --font-hebrew: 'Alef' included. Tailwind preset with Alef in font stack.</div><div class="impl-file">brava-brand/assets/tokens.css</div></div>
+    <div class="impl-card"><div class="impl-title">Logo SVGs</div><div class="impl-desc">All mark and wordmark variants. Mark is language-neutral — works for both LTR and RTL.</div><div class="impl-file">brava-brand/logos/</div></div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<div style="display:flex;justify-content:space-between;align-items:center;padding-top:48px;border-top:0.5px solid var(--beige);margin-top:32px">
+  <div>
+    <div style="font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--ink);margin-bottom:3px">Brava Brand System v1.1</div>
+    <div style="font-family:var(--font-hebrew);font-size:14px;color:var(--ink-s);direction:rtl;margin-bottom:4px">מדריך מיתוג · EN + עברית · אלף</div>
+    <div style="font-size:12px;color:var(--ink-s);font-weight:300">Bilingual edition — English & Hebrew · Internal use</div>
+  </div>
+  <svg width="44" height="44" viewBox="0 0 200 200"><rect width="200" height="200" rx="14" fill="#BF4646"/><path d="M38 24L38 176L112 176Q164 176 164 134Q164 108 140 98Q164 88 164 62Q164 24 112 24ZM68 52L104 52Q128 52 128 70Q128 88 104 88L68 88ZM68 112L108 112Q134 112 134 134Q134 156 108 156L68 156Z" fill="white"/><path d="M52 38L52 162L112 162Q148 162 148 134Q148 112 128 102Q148 92 148 62Q148 38 112 38ZM80 60L100 60Q118 60 118 72Q118 84 100 84L80 84ZM80 116L106 116Q122 116 122 134Q122 152 106 152L80 152Z" fill="#BF4646"/></svg>
+</div>
+
+</div>
+
+<script>
+function setLang(lang) {
+  document.querySelectorAll('.lt-btn').forEach((b,i) => b.classList.toggle('active', (i===0&&lang==='en')||(i===1&&lang==='he')));
+  document.querySelectorAll('[data-en]').forEach(el => {
+    const txt = el.getAttribute('data-' + lang);
+    if (!txt) return;
+    el.textContent = txt;
+    if (lang === 'he') {
+      el.style.fontFamily = "'Alef', sans-serif";
+      el.style.direction = 'rtl';
+      el.style.letterSpacing = '0';
+    } else {
+      el.style.fontFamily = '';
+      el.style.direction = '';
+      el.style.letterSpacing = '';
+    }
+  });
+  const cthe = document.getElementById('cover-title-he');
+  const cshe = document.getElementById('cover-sub-he');
+  if (cthe) cthe.style.opacity = lang === 'he' ? '0.9' : '0.35';
+  if (cshe) cshe.style.opacity = lang === 'he' ? '0.9' : '0.35';
+}
+</script>
+</body>
+</html>

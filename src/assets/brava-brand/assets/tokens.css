@@ -1,0 +1,121 @@
+/* ============================================================
+   BRAVA DESIGN TOKENS  — v1.0
+   Drop into your project as tokens.css or paste into :root
+   ============================================================ */
+
+:root {
+
+  /* ── BRAND COLORS ── */
+  --brava-crimson:       #BF4646;
+  --brava-crimson-dark:  #9A3030;
+  --brava-crimson-light: #D96B6B;
+  --brava-crimson-pale:  rgba(191, 70, 70, 0.08);
+
+  --brava-beige:         #EDDCC6;
+  --brava-beige-dark:    #D9C4A8;
+  --brava-beige-light:   #F5EDE0;
+
+  --brava-cream:         #FFF4EA;
+  --brava-cream-dark:    #F5E8D6;
+
+  --brava-teal:          #7EACB5;
+  --brava-teal-dark:     #5A8E99;
+  --brava-teal-light:    #A4C8CF;
+  --brava-teal-pale:     rgba(126, 172, 181, 0.15);
+
+  --brava-ink:           #2C1E1E;
+  --brava-ink-mid:       #5C4040;
+  --brava-ink-soft:      #9A7A7A;
+  --brava-ink-muted:     rgba(44, 30, 30, 0.35);
+
+  /* ── SEMANTIC ALIASES ── */
+  --color-primary:       var(--brava-crimson);
+  --color-primary-hover: var(--brava-crimson-dark);
+  --color-secondary:     var(--brava-teal);
+  --color-background:    var(--brava-cream);
+  --color-surface:       #FFFFFF;
+  --color-border:        var(--brava-beige);
+  --color-text:          var(--brava-ink);
+  --color-text-muted:    var(--brava-ink-soft);
+
+  /* ── TYPOGRAPHY ── */
+  --font-display:  'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-body:     'DM Sans', 'Inter', system-ui, sans-serif;
+  --font-hebrew:   'Alef', Arial, sans-serif;
+  --font-mono:     'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+
+  --text-xs:   11px;
+  --text-sm:   13px;
+  --text-base: 15px;
+  --text-md:   17px;
+  --text-lg:   22px;
+  --text-xl:   28px;
+  --text-2xl:  36px;
+  --text-3xl:  48px;
+  --text-4xl:  64px;
+
+  --leading-tight:  1.15;
+  --leading-snug:   1.35;
+  --leading-normal: 1.6;
+  --leading-relaxed:1.75;
+
+  --tracking-tight:  -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.05em;
+  --tracking-wider:  0.12em;
+  --tracking-widest: 0.2em;
+
+  /* ── SPACING (8px base grid) ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ── BORDER RADIUS ── */
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   10px;
+  --radius-xl:   14px;
+  --radius-2xl:  20px;
+  --radius-full: 9999px;
+
+  /* ── SHADOWS ── */
+  --shadow-sm:  0 1px 3px rgba(44,30,30,0.08), 0 1px 2px rgba(44,30,30,0.05);
+  --shadow-md:  0 4px 12px rgba(44,30,30,0.10), 0 2px 4px rgba(44,30,30,0.06);
+  --shadow-lg:  0 10px 30px rgba(44,30,30,0.12), 0 4px 8px rgba(44,30,30,0.06);
+  --shadow-xl:  0 20px 50px rgba(44,30,30,0.14);
+
+  /* ── TRANSITIONS ── */
+  --transition-fast:   0.12s ease;
+  --transition-base:   0.2s ease;
+  --transition-slow:   0.35s ease;
+  --transition-bounce: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Z-INDEX SCALE ── */
+  --z-base:    0;
+  --z-raised:  10;
+  --z-overlay: 100;
+  --z-modal:   200;
+  --z-toast:   300;
+  --z-tooltip: 400;
+}
+
+/* ── DARK MODE OVERRIDES ── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #1C1212;
+    --color-surface:    #251818;
+    --color-border:     rgba(237,220,198,0.15);
+    --color-text:       #F5E8D6;
+    --color-text-muted: #9A7A7A;
+    --brava-cream:      #1C1212;
+  }
+}

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" fill="#BF4646"/>
+  <!-- Simplified B for small sizes -->
+  <path d="M 6 4 L 6 28 L 17 28 Q 26 28 26 21 Q 26 17 22 15.5 Q 26 14 26 10 Q 26 4 17 4 Z
+           M 10 8 L 16 8 Q 20 8 20 11 Q 20 14 16 14 L 10 14 Z
+           M 10 18 L 17 18 Q 21 18 21 21 Q 21 24 17 24 L 10 24 Z" fill="white"/>
+  <path d="M 8 6 L 8 26 L 17 26 Q 24 26 24 21 Q 24 17.5 20.5 16 Q 24 14.5 24 10 Q 24 6 17 6 Z
+           M 11 9 L 16 9 Q 19 9 19 11.5 Q 19 14 16 14 L 11 14 Z
+           M 11 18 L 17 18 Q 20 18 20 21 Q 20 24 17 24 L 11 24 Z" fill="#BF4646"/>
+</svg>

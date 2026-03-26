@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<browserconfig>
+  <msapplication>
+    <tile>
+      <square70x70logo src="/favicons/favicon-96x96.png"/>
+      <square150x150logo src="/favicons/mstile-150x150.png"/>
+      <square310x310logo src="/favicons/android-chrome-512x512.png"/>
+      <TileColor>#BF4646</TileColor>
+    </tile>
+  </msapplication>
+</browserconfig>

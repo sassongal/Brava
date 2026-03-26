@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 120" width="520" height="120">
+  <g transform="translate(10, 10) scale(0.5)">
+    <path d="M 38 24 L 38 176 L 112 176 Q 164 176 164 134 Q 164 108 140 98 Q 164 88 164 62 Q 164 24 112 24 Z M 68 52 L 104 52 Q 128 52 128 70 Q 128 88 104 88 L 68 88 Z M 68 112 L 108 112 Q 134 112 134 134 Q 134 156 108 156 L 68 156 Z" fill="white"/>
+    <path d="M 52 38 L 52 162 L 112 162 Q 148 162 148 134 Q 148 112 128 102 Q 148 92 148 62 Q 148 38 112 38 Z M 80 60 L 100 60 Q 118 60 118 72 Q 118 84 100 84 L 80 84 Z M 80 116 L 106 116 Q 122 116 122 134 Q 122 152 106 152 L 80 152 Z" fill="#BF4646"/>
+  </g>
+  <text x="112" y="82"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="68"
+        font-weight="700"
+        fill="white"
+        letter-spacing="3">Brava</text>
+</svg>
