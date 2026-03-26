@@ -26,11 +26,14 @@ export function LayoutConverter() {
   }, []);
 
   useEffect(() => {
-    if (input.length >= 2) {
-      detectLayout(input).then(setDetection).catch(console.error);
-    } else {
+    if (input.length < 2) {
       setDetection(null);
+      return;
     }
+    const timer = setTimeout(() => {
+      detectLayout(input).then(setDetection).catch(console.error);
+    }, 300);
+    return () => clearTimeout(timer);
   }, [input]);
 
   const handleConvert = async () => {

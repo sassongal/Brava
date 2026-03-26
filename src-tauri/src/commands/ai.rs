@@ -75,7 +75,7 @@ pub async fn ai_complete(
 
     let active = provider
         .map(|s| s.to_string())
-        .unwrap_or_else(|| state.active_provider.lock().unwrap().clone());
+        .unwrap_or_else(|| state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone());
 
     complete_with_provider(&active, &state, &request).await
 }
@@ -86,7 +86,7 @@ pub async fn ai_enhance_prompt(
     state: State<'_, AIState>,
 ) -> Result<AIResponse, String> {
     let request = AIRequest::enhance_prompt(text);
-    let active = state.active_provider.lock().unwrap().clone();
+    let active = state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone();
     complete_with_provider(&active, &state, &request).await
 }
 
@@ -98,7 +98,7 @@ pub async fn ai_translate(
     state: State<'_, AIState>,
 ) -> Result<AIResponse, String> {
     let request = AIRequest::translate(text, source_lang, target_lang);
-    let active = state.active_provider.lock().unwrap().clone();
+    let active = state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone();
     complete_with_provider(&active, &state, &request).await
 }
 
@@ -141,11 +141,11 @@ pub fn set_api_key(provider: &str, key: &str, state: State<'_, AIState>) -> Resu
 #[tauri::command]
 pub fn get_ai_models(state: State<'_, AIState>) -> Vec<AIModel> {
     let mut models = Vec::new();
-    models.extend(state.gemini.lock().unwrap().available_models());
-    models.extend(state.openai.lock().unwrap().available_models());
-    models.extend(state.claude.lock().unwrap().available_models());
-    models.extend(state.openrouter.lock().unwrap().available_models());
-    models.extend(state.ollama.lock().unwrap().available_models());
+    models.extend(state.gemini.lock().unwrap_or_else(|e| e.into_inner()).available_models());
+    models.extend(state.openai.lock().unwrap_or_else(|e| e.into_inner()).available_models());
+    models.extend(state.claude.lock().unwrap_or_else(|e| e.into_inner()).available_models());
+    models.extend(state.openrouter.lock().unwrap_or_else(|e| e.into_inner()).available_models());
+    models.extend(state.ollama.lock().unwrap_or_else(|e| e.into_inner()).available_models());
     models
 }
 
@@ -160,5 +160,5 @@ pub fn get_ai_providers() -> Vec<serde_json::Value> {
             {"id": "ollama", "name": "Ollama (Local)", "has_free_tier": true}
         ]"#,
     )
-    .unwrap()
+    .expect("Invalid static JSON for AI providers")
 }

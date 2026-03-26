@@ -7,7 +7,7 @@ pub struct SnippetState(pub Mutex<SnippetEngine>);
 
 #[tauri::command]
 pub fn get_snippets(state: State<'_, SnippetState>) -> Vec<Snippet> {
-    let engine = state.0.lock().unwrap();
+    let engine = state.0.lock().unwrap_or_else(|e| e.into_inner());
     engine.get_all()
 }
 
@@ -28,7 +28,7 @@ pub fn add_snippet(
     if let Err(e) = db.0.save_snippet(&result) {
         log::error!("Failed to persist snippet: {}", e);
     }
-    let mut engine = state.0.lock().unwrap();
+    let mut engine = state.0.lock().unwrap_or_else(|e| e.into_inner());
     engine.add(snippet);
     result
 }
@@ -64,7 +64,7 @@ pub fn delete_snippet(
     state: State<'_, SnippetState>,
     db: State<'_, DatabaseState>,
 ) -> bool {
-    let mut engine = state.0.lock().unwrap();
+    let mut engine = state.0.lock().unwrap_or_else(|e| e.into_inner());
     let removed = engine.remove(id).is_some();
     if removed {
         if let Err(e) = db.0.delete_snippet(id) {
@@ -76,7 +76,7 @@ pub fn delete_snippet(
 
 #[tauri::command]
 pub fn match_snippet_buffer(buffer: &str, state: State<'_, SnippetState>) -> Option<Snippet> {
-    let engine = state.0.lock().unwrap();
+    let engine = state.0.lock().unwrap_or_else(|e| e.into_inner());
     engine.match_buffer(buffer).cloned()
 }
 

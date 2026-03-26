@@ -317,6 +317,11 @@ fn clipboard_monitor(
             continue;
         }
 
+        // Skip content larger than 1MB
+        if current.len() > 1_048_576 {
+            continue;
+        }
+
         last_content = current.clone();
 
         // Skip content we wrote ourselves (from write_system_clipboard)

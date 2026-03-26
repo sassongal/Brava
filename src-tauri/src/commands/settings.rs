@@ -7,7 +7,7 @@ pub struct SettingsState(pub Mutex<AppSettings>);
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, SettingsState>) -> AppSettings {
-    state.0.lock().unwrap().clone()
+    state.0.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 #[tauri::command]
@@ -28,7 +28,7 @@ pub fn save_settings_to_db(
 
 #[tauri::command]
 pub fn get_setting_value(key: &str, state: State<'_, SettingsState>) -> Option<String> {
-    let settings = state.0.lock().unwrap();
+    let settings = state.0.lock().unwrap_or_else(|e| e.into_inner());
     let json = serde_json::to_value(&*settings).ok()?;
     json.get(key).map(|v| v.to_string().trim_matches('"').to_string())
 }
@@ -92,14 +92,14 @@ pub fn get_caffeine_status(state: State<'_, CaffeineState>) -> bool {
 
 #[tauri::command]
 pub fn toggle_keyboard_lock(state: State<'_, KeyboardLockState>) -> bool {
-    let mut locked = state.locked.lock().unwrap();
+    let mut locked = state.locked.lock().unwrap_or_else(|e| e.into_inner());
     *locked = !*locked;
     *locked
 }
 
 #[tauri::command]
 pub fn get_keyboard_lock_status(state: State<'_, KeyboardLockState>) -> bool {
-    *state.locked.lock().unwrap()
+    *state.locked.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 // --- Permission Status ---
@@ -115,11 +115,10 @@ pub fn check_permissions() -> serde_json::Value {
 
 #[cfg(target_os = "macos")]
 fn check_accessibility_permission() -> bool {
-    // Use macOS ApplicationServices API to check Accessibility trust
     extern "C" {
-        fn AXIsProcessTrusted() -> bool;
+        fn AXIsProcessTrusted() -> u8;
     }
-    unsafe { AXIsProcessTrusted() }
+    unsafe { AXIsProcessTrusted() != 0 }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -145,6 +144,15 @@ pub fn import_settings(
 ) -> Result<(), String> {
     let new_settings: AppSettings = serde_json::from_str(json)
         .map_err(|e| format!("Invalid settings JSON: {}", e))?;
+    // Validate critical fields
+    if !new_settings.ollama_endpoint.starts_with("http://localhost")
+        && !new_settings.ollama_endpoint.starts_with("http://127.0.0.1")
+    {
+        return Err("Invalid ollama_endpoint: must be localhost".to_string());
+    }
+    if new_settings.max_clipboard_items < 10 || new_settings.max_clipboard_items > 1000 {
+        return Err("max_clipboard_items must be between 10 and 1000".to_string());
+    }
     // Persist to DB so import survives restart
     new_settings.save(&db.0)?;
     let mut current = state.0.lock().map_err(|e| e.to_string())?;

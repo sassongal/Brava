@@ -1,3 +1,4 @@
+use crate::commands::clipboard::ClipboardState;
 use crate::engine::layout::{ConversionResult, DetectionResult, LayoutEngine, LayoutInfo};
 use tauri::State;
 use std::sync::Mutex;
@@ -23,19 +24,22 @@ pub fn auto_convert(text: &str, state: State<'_, LayoutState>) -> Result<Convers
 
 #[tauri::command]
 pub fn detect_layout(text: &str, state: State<'_, LayoutState>) -> DetectionResult {
-    let engine = state.0.lock().unwrap();
+    let engine = state.0.lock().unwrap_or_else(|e| e.into_inner());
     engine.detect_layout(text)
 }
 
 #[tauri::command]
 pub fn get_layouts(state: State<'_, LayoutState>) -> Vec<LayoutInfo> {
-    let engine = state.0.lock().unwrap();
+    let engine = state.0.lock().unwrap_or_else(|e| e.into_inner());
     engine.available_layouts()
 }
 
 /// Convert the current system clipboard content and write back
 #[tauri::command]
-pub fn convert_clipboard_text(state: State<'_, LayoutState>) -> Result<String, String> {
+pub fn convert_clipboard_text(
+    state: State<'_, LayoutState>,
+    clipboard_state: State<'_, ClipboardState>,
+) -> Result<String, String> {
     // Read current clipboard
     let mut clipboard = arboard::Clipboard::new()
         .map_err(|e| format!("Failed to access clipboard: {}", e))?;
@@ -49,6 +53,9 @@ pub fn convert_clipboard_text(state: State<'_, LayoutState>) -> Result<String, S
     // Convert
     let engine = state.0.lock().map_err(|e| e.to_string())?;
     let result = engine.auto_convert(&text)?;
+
+    // Mark content so clipboard monitor skips it
+    clipboard_state.0.set_skip(&result.converted);
 
     // Write back to clipboard
     clipboard.set_text(&result.converted)

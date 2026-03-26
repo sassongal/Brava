@@ -1,8 +1,14 @@
 use chrono::{DateTime, Utc};
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Mutex;
 use uuid::Uuid;
+
+static RE_EMAIL: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap());
+static RE_PHONE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[\+]?[(]?[0-9]{1,4}[)]?[-\s\./0-9]{6,15}$").unwrap());
+static RE_COLOR: Lazy<Regex> = Lazy::new(|| Regex::new(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$").unwrap());
 
 /// Categories for auto-classification of clipboard content
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -74,26 +80,17 @@ impl ClipboardItem {
         }
 
         // Email detection
-        if regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
-            .map(|re| re.is_match(trimmed))
-            .unwrap_or(false)
-        {
+        if RE_EMAIL.is_match(trimmed) {
             return ClipboardCategory::Email;
         }
 
         // Phone number detection (international formats)
-        if regex::Regex::new(r"^[\+]?[(]?[0-9]{1,4}[)]?[-\s\./0-9]{6,15}$")
-            .map(|re| re.is_match(trimmed))
-            .unwrap_or(false)
-        {
+        if RE_PHONE.is_match(trimmed) {
             return ClipboardCategory::Phone;
         }
 
         // Color hex code
-        if regex::Regex::new(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
-            .map(|re| re.is_match(trimmed))
-            .unwrap_or(false)
-        {
+        if RE_COLOR.is_match(trimmed) {
             return ClipboardCategory::Color;
         }
 
@@ -146,13 +143,13 @@ impl ClipboardManager {
     /// Mark content we're about to write to the system clipboard so the monitor skips it.
     pub fn set_skip(&self, content: &str) {
         let hash = ClipboardItem::compute_hash(content);
-        *self.skip_hash.lock().unwrap() = Some(hash);
+        *self.skip_hash.lock().unwrap_or_else(|e| e.into_inner()) = Some(hash);
     }
 
     /// Check if content should be skipped (was written by us), and clear the flag.
     pub fn should_skip(&self, content: &str) -> bool {
         let hash = ClipboardItem::compute_hash(content);
-        let mut skip = self.skip_hash.lock().unwrap();
+        let mut skip = self.skip_hash.lock().unwrap_or_else(|e| e.into_inner());
         if skip.as_deref() == Some(&hash) {
             *skip = None;
             true
@@ -163,16 +160,20 @@ impl ClipboardManager {
 
     /// Add a new item to clipboard history. Returns None if duplicate.
     pub fn add(&self, content: String) -> Option<ClipboardItem> {
+        // Skip content larger than 1MB
+        if content.len() > 1_048_576 {
+            return None;
+        }
         let item = ClipboardItem::new(content);
 
-        let mut last_hash = self.last_hash.lock().unwrap();
+        let mut last_hash = self.last_hash.lock().unwrap_or_else(|e| e.into_inner());
         if *last_hash == item.hash {
             return None; // Duplicate of last item
         }
         *last_hash = item.hash.clone();
         drop(last_hash);
 
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().unwrap_or_else(|e| e.into_inner());
 
         // Remove any existing item with the same hash (dedup)
         items.retain(|existing| existing.hash != item.hash || existing.pinned);
@@ -199,7 +200,7 @@ impl ClipboardManager {
 
     /// Get all items, optionally filtered by search query
     pub fn get_items(&self, query: Option<&str>, category: Option<&ClipboardCategory>, limit: usize, offset: usize) -> Vec<ClipboardItem> {
-        let items = self.items.lock().unwrap();
+        let items = self.items.lock().unwrap_or_else(|e| e.into_inner());
 
         items.iter()
             .filter(|item| {
@@ -226,17 +227,25 @@ impl ClipboardManager {
 
     /// Toggle pin status of an item
     pub fn toggle_pin(&self, id: &str) -> bool {
-        let mut items = self.items.lock().unwrap();
-        if let Some(item) = items.iter_mut().find(|i| i.id == id) {
-            item.pinned = !item.pinned;
-            return item.pinned;
+        let mut items = self.items.lock().unwrap_or_else(|e| e.into_inner());
+        let idx = match items.iter().position(|i| i.id == id) {
+            Some(idx) => idx,
+            None => return false,
+        };
+        if !items[idx].pinned {
+            // Cap at 50 pinned items
+            let pinned_count = items.iter().filter(|i| i.pinned).count();
+            if pinned_count >= 50 {
+                return false;
+            }
         }
-        false
+        items[idx].pinned = !items[idx].pinned;
+        items[idx].pinned
     }
 
     /// Toggle favorite status
     pub fn toggle_favorite(&self, id: &str) -> bool {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(item) = items.iter_mut().find(|i| i.id == id) {
             item.favorite = !item.favorite;
             return item.favorite;
@@ -246,7 +255,7 @@ impl ClipboardManager {
 
     /// Delete a specific item
     pub fn delete(&self, id: &str) -> bool {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().unwrap_or_else(|e| e.into_inner());
         let len_before = items.len();
         items.retain(|i| i.id != id);
         items.len() < len_before
@@ -254,24 +263,24 @@ impl ClipboardManager {
 
     /// Clear all non-pinned items
     pub fn clear(&self) {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().unwrap_or_else(|e| e.into_inner());
         items.retain(|i| i.pinned);
     }
 
     /// Get total item count
     pub fn count(&self) -> usize {
-        self.items.lock().unwrap().len()
+        self.items.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Load items from a stored vector (for persistence recovery)
     pub fn load(&self, stored_items: Vec<ClipboardItem>) {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().unwrap_or_else(|e| e.into_inner());
         *items = stored_items;
     }
 
     /// Get all items for persistence
     pub fn get_all(&self) -> Vec<ClipboardItem> {
-        self.items.lock().unwrap().clone()
+        self.items.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
