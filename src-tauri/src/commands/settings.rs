@@ -60,24 +60,39 @@ pub fn toggle_caffeine(state: State<'_, CaffeineState>) -> Result<bool, String> 
         if let Some(mut child) = inner.process.take() {
             let _ = child.kill();
         }
+        // Windows: reset execution state
+        #[cfg(target_os = "windows")]
+        {
+            use windows_sys::Win32::System::Power::{SetThreadExecutionState, ES_CONTINUOUS};
+            unsafe { SetThreadExecutionState(ES_CONTINUOUS); }
+        }
         inner.active = false;
         Ok(false)
     } else {
         // Enable caffeine based on platform
-        let child = if cfg!(target_os = "macos") {
-            std::process::Command::new("caffeinate")
-                .arg("-di") // prevent display sleep and idle sleep
+        if cfg!(target_os = "macos") {
+            let child = std::process::Command::new("caffeinate")
+                .arg("-di")
                 .spawn()
-                .map_err(|e| format!("Failed to start caffeinate: {}", e))?
+                .map_err(|e| format!("Failed to start caffeinate: {}", e))?;
+            inner.process = Some(child);
         } else if cfg!(target_os = "linux") {
-            std::process::Command::new("systemd-inhibit")
+            let child = std::process::Command::new("systemd-inhibit")
                 .args(["--what=idle:sleep", "--who=Brava", "--why=Caffeine mode", "sleep", "infinity"])
                 .spawn()
-                .map_err(|e| format!("Failed to start systemd-inhibit: {}", e))?
+                .map_err(|e| format!("Failed to start systemd-inhibit: {}", e))?;
+            inner.process = Some(child);
+        } else if cfg!(target_os = "windows") {
+            #[cfg(target_os = "windows")]
+            {
+                use windows_sys::Win32::System::Power::{SetThreadExecutionState, ES_CONTINUOUS, ES_SYSTEM_REQUIRED, ES_DISPLAY_REQUIRED};
+                unsafe {
+                    SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
+                }
+            }
         } else {
             return Err("Caffeine mode not yet supported on this platform".to_string());
-        };
-        inner.process = Some(child);
+        }
         inner.active = true;
         Ok(true)
     }

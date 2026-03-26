@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocale, setLocale } from "../lib/i18n";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { checkPermissions, type PermissionStatus } from "../lib/tauri";
+import { checkPermissions, getAppInfo, type PermissionStatus } from "../lib/tauri";
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -11,7 +11,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [locale, t] = useLocale();
   const [step, setStep] = useState(0);
   const [permissions, setPermissions] = useState<PermissionStatus | null>(null);
+  const [currentPlatform, setCurrentPlatform] = useState<string>("macos");
   const isHebrew = locale === "he";
+
+  // Detect platform on mount
+  useEffect(() => {
+    getAppInfo().then((info) => setCurrentPlatform(info.platform)).catch(() => {});
+  }, []);
 
   const refreshPermissions = useCallback(async () => {
     try {
@@ -77,9 +83,16 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     );
   }
 
-  // Step definitions
+  const isMacOS = currentPlatform === "macos";
+  const isWindows = currentPlatform === "windows";
+
+  // Step definitions — permissions step adapts to platform
+  const permStepTitle = isMacOS ? t("onb.permissions") : isWindows ? t("onb.windowsTips") : t("onb.permissions");
+  const permStepDesc = isMacOS ? t("onb.permissionsDesc") : isWindows ? t("onb.windowsTipsDesc") : t("onb.permissionsDesc");
+  const permStepDetail = isMacOS ? t("onb.permissionsHint") : isWindows ? t("onb.windowsTipsHint") : t("onb.permissionsHint");
+
   const STEPS = [
-    { id: "permissions", icon: "shield", title: t("onb.permissions"), description: t("onb.permissionsDesc"), detail: t("onb.permissionsHint") },
+    { id: "permissions", icon: "shield", title: permStepTitle, description: permStepDesc, detail: permStepDetail },
     { id: "layout", icon: "arrows", title: t("onb.layoutTitle"), description: t("onb.layoutDesc"), detail: t("onb.layoutDetail") },
     { id: "clipboard", icon: "clipboard", title: t("onb.clipTitle"), description: t("onb.clipDesc"), detail: t("onb.clipDetail") },
     { id: "snippets", icon: "code", title: t("onb.snippetTitle"), description: t("onb.snippetDesc"), detail: t("onb.snippetDetail") },
@@ -101,7 +114,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const isLast = currentIdx === STEPS.length - 1;
   const dir = isHebrew ? "rtl" : "ltr";
 
-  const permissionItems = [
+  // macOS: show accessibility permission with deeplink
+  // Windows: show tips instead (no permissions needed)
+  // Linux: show accessibility info
+  const permissionItems = isMacOS ? [
     {
       key: "accessibility" as const,
       label: t("onb.perm.accessibility"),
@@ -109,7 +125,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
       icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="4" r="2"/><path d="M12 6v6m-4-2l4 2 4-2m-8 4l4 6 4-6"/></svg>,
     },
-  ];
+  ] : [];
 
   return (
     <div

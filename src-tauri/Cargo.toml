@@ -34,3 +34,6 @@ tauri-plugin-global-shortcut = "2"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 tauri-plugin-dialog = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_Power"] }

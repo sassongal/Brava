@@ -127,6 +127,11 @@ const translations = {
 
   "app.transcription": { en: "Transcribe", he: "תמלול" },
 
+  // Windows onboarding
+  "onb.windowsTips": { en: "Getting Started", he: "תחילת עבודה" },
+  "onb.windowsTipsDesc": { en: "Brava uses global keyboard shortcuts to enhance your workflow. Some antivirus software may flag this — it's safe to allow. If shortcuts don't work, try running Brava as Administrator.", he: "Brava משתמשת בקיצורי מקלדת גלובליים לשיפור העבודה שלך. תוכנות אנטי-וירוס מסוימות עשויות לסמן זאת — זה בטוח לאפשר. אם הקיצורים לא עובדים, נסה להריץ את Brava כמנהל מערכת." },
+  "onb.windowsTipsHint": { en: "All keyboard shortcuts can be customized in Settings.", he: "כל קיצורי המקלדת ניתנים להתאמה אישית בהגדרות." },
+
   // Sound & Grammar settings
   "set.sounds": { en: "Sound Effects", he: "אפקטי קול" },
   "set.soundsDesc": { en: "Play sounds on actions (conversion, screenshot, etc.)", he: "השמע צלילים בפעולות (המרה, צילום מסך וכו')" },

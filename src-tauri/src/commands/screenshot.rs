@@ -40,15 +40,48 @@ pub async fn take_screenshot(
                     .status()
             })
             .map_err(|e| format!("No screenshot tool found: {}", e))?
+    } else if cfg!(target_os = "windows") {
+        // Windows: launch Snipping Tool, then capture from clipboard
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "ms-screenclip:"])
+            .status()
+            .or_else(|_| {
+                std::process::Command::new("snippingtool.exe")
+                    .status()
+            })
+            .map_err(|e| format!("Failed to launch screenshot tool: {}", e))?;
+
+        // Wait for user to complete selection (Snipping Tool saves to clipboard)
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        // Read image from Windows clipboard and save to file
+        let mut clip = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        if let Ok(img) = clip.get_image() {
+            image::save_buffer(
+                &filepath,
+                &img.bytes,
+                img.width as u32,
+                img.height as u32,
+                image::ColorType::Rgba8,
+            ).map_err(|e| format!("Failed to save screenshot: {}", e))?;
+        } else {
+            return Err("Screenshot cancelled".to_string());
+        }
+
+        // Fake a success status for the flow below
+        std::process::Command::new("cmd").args(["/C", "echo", "ok"]).status()
+            .map_err(|e| format!("{}", e))?
     } else {
         return Err("Screenshot not supported on this platform".to_string());
     };
 
-    if !status.success() {
-        return Err("Screenshot cancelled".to_string());
+    // For non-Windows platforms, check exit status and file existence
+    if !cfg!(target_os = "windows") {
+        if !status.success() {
+            return Err("Screenshot cancelled".to_string());
+        }
     }
 
-    // Verify file was created
     if !filepath.exists() {
         return Err("Screenshot cancelled".to_string());
     }

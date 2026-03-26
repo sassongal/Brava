@@ -315,6 +315,10 @@ fn clipboard_monitor(
         Ok(c) => c,
         Err(e) => {
             log::error!("Failed to initialize clipboard monitor: {}", e);
+            // On Linux/Wayland, suggest installing wl-clipboard
+            if cfg!(target_os = "linux") {
+                let _ = app.emit("toast", "Clipboard not available. On Wayland, install wl-clipboard package.");
+            }
             return;
         }
     };
