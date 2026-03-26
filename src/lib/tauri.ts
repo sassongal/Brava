@@ -10,6 +10,9 @@ export const autoConvert = (text: string) =>
 export const detectLayout = (text: string) =>
   invoke<DetectionResult>("detect_layout", { text });
 
+export const detectWrongLayoutAlert = (text: string) =>
+  invoke<WrongLayoutAlert | null>("detect_wrong_layout_alert", { text });
+
 export const getLayouts = () =>
   invoke<LayoutInfo[]>("get_layouts");
 
@@ -85,14 +88,14 @@ export const aiCompleteStream = (
   requestId?: string,
 ) => invoke<string>("ai_complete_stream", { prompt, systemPrompt, provider, model, requestId });
 
-export const aiEnhancePrompt = (text: string) =>
-  invoke<AIResponse>("ai_enhance_prompt", { text });
+export const aiEnhancePrompt = (text: string, provider?: string) =>
+  invoke<AIResponse>("ai_enhance_prompt", { text, provider });
 
-export const aiTranslate = (text: string, sourceLang: string, targetLang: string) =>
-  invoke<AIResponse>("ai_translate", { text, sourceLang, targetLang });
+export const aiTranslate = (text: string, sourceLang: string, targetLang: string, provider?: string) =>
+  invoke<AIResponse>("ai_translate", { text, sourceLang, targetLang, provider });
 
-export const aiFixGrammar = (text: string) =>
-  invoke<AIResponse>("ai_fix_grammar", { text });
+export const aiFixGrammar = (text: string, provider?: string) =>
+  invoke<AIResponse>("ai_fix_grammar", { text, provider });
 
 export const setAiProvider = (provider: string) =>
   invoke<void>("set_ai_provider", { provider });
@@ -239,6 +242,9 @@ export interface TranscriptionJobEvent {
 export const enqueueTranscription = (filePath: string) =>
   invoke<{ job_id: string; status: string }>("enqueue_transcription", { filePath });
 
+export const enqueueTranscriptionBlob = (dataBase64: string, mimeType?: string, fileName?: string) =>
+  invoke<{ job_id: string; status: string }>("enqueue_transcription_blob", { dataBase64, mimeType, fileName });
+
 export const listTranscriptions = (limit?: number, offset?: number) =>
   invoke<TranscriptionJobRecord[]>("list_transcriptions", { limit, offset });
 
@@ -254,6 +260,14 @@ export interface DetectionResult {
   detected_name: string;
   confidence: number;
   char_counts: [string, number][];
+}
+
+export interface WrongLayoutAlert {
+  wrong_text: string;
+  suggested_text: string;
+  source_layout: string;
+  target_layout: string;
+  confidence: number;
 }
 
 export interface LayoutInfo {
@@ -325,6 +339,7 @@ export interface AppSettings {
   default_target_layout: string;
   auto_detect_layout: boolean;
   realtime_detection: boolean;
+  global_typing_detection: boolean;
   clipboard_enabled: boolean;
   max_clipboard_items: number;
   clipboard_preview_length: number;

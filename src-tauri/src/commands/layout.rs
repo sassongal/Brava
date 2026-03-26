@@ -1,5 +1,6 @@
 use crate::commands::clipboard::ClipboardState;
 use crate::engine::layout::{ConversionResult, DetectionResult, LayoutEngine, LayoutInfo};
+use serde::Serialize;
 use tauri::State;
 use std::sync::Mutex;
 
@@ -62,4 +63,55 @@ pub fn convert_clipboard_text(
         .map_err(|e| format!("Failed to write clipboard: {}", e))?;
 
     Ok(result.converted)
+}
+
+#[derive(Serialize)]
+pub struct WrongLayoutAlert {
+    pub wrong_text: String,
+    pub suggested_text: String,
+    pub source_layout: String,
+    pub target_layout: String,
+    pub confidence: f64,
+}
+
+#[tauri::command]
+pub fn detect_wrong_layout_alert(
+    text: &str,
+    state: State<'_, LayoutState>,
+) -> Option<WrongLayoutAlert> {
+    let trimmed = text.trim();
+    if trimmed.chars().count() < 6 || trimmed.len() > 200 {
+        return None;
+    }
+
+    let engine = state.0.lock().ok()?;
+    let detected = engine.detect_layout(trimmed);
+    let converted = engine.auto_convert(trimmed).ok()?;
+    if converted.converted == trimmed {
+        return None;
+    }
+    let converted_detected = engine.detect_layout(&converted.converted);
+
+    // Primary wrong-layout heuristics:
+    // 1) English-looking text converts into a high-confidence non-English script.
+    // 2) Non-English text converts into a high-confidence English script.
+    let looks_like_wrong_english = detected.detected_code == "en"
+        && detected.confidence >= 0.75
+        && converted_detected.detected_code != "en"
+        && converted_detected.confidence >= 0.70;
+    let looks_like_wrong_non_english = detected.detected_code != "en"
+        && converted_detected.detected_code == "en"
+        && converted_detected.confidence >= 0.70;
+
+    if !(looks_like_wrong_english || looks_like_wrong_non_english) {
+        return None;
+    }
+
+    Some(WrongLayoutAlert {
+        wrong_text: trimmed.to_string(),
+        suggested_text: converted.converted,
+        source_layout: converted.source_layout,
+        target_layout: converted.target_layout,
+        confidence: converted_detected.confidence.max(detected.confidence),
+    })
 }

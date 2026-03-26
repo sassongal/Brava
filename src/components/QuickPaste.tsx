@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getClipboardItems, writeSystemClipboard, type ClipboardItem } from "../lib/tauri";
+import { useLocale } from "../lib/i18n";
 import { showToast } from "./Toast";
 
 interface QuickPasteProps {
@@ -8,6 +9,7 @@ interface QuickPasteProps {
 }
 
 export function QuickPaste({ open, onClose }: QuickPasteProps) {
+  const [, t] = useLocale();
   const [items, setItems] = useState<ClipboardItem[]>([]);
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
@@ -42,7 +44,7 @@ export function QuickPaste({ open, onClose }: QuickPasteProps) {
         if (!item) return;
         try {
           await writeSystemClipboard(item.content);
-          showToast("Copied from quick paste", "success");
+          showToast(t("qp.copied"), "success");
         } catch (err) {
           showToast(String(err), "error");
         } finally {
@@ -52,7 +54,7 @@ export function QuickPaste({ open, onClose }: QuickPasteProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, filtered, activeIdx, onClose]);
+  }, [open, filtered, activeIdx, onClose, t]);
 
   if (!open) return null;
 
@@ -74,7 +76,8 @@ export function QuickPaste({ open, onClose }: QuickPasteProps) {
         <input
           className="input"
           autoFocus
-          placeholder="Quick paste... type to filter, Enter to copy"
+          placeholder={t("qp.placeholder")}
+          aria-label={t("qp.inputLabel")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ marginBottom: 10 }}
@@ -88,7 +91,7 @@ export function QuickPaste({ open, onClose }: QuickPasteProps) {
               onClick={async () => {
                 try {
                   await writeSystemClipboard(item.content);
-                  showToast("Copied from quick paste", "success");
+                  showToast(t("qp.copied"), "success");
                 } catch (err) {
                   showToast(String(err), "error");
                 } finally {
@@ -106,7 +109,7 @@ export function QuickPaste({ open, onClose }: QuickPasteProps) {
               </span>
             </button>
           ))}
-          {filtered.length === 0 && <div style={{ fontSize: 13, color: "var(--text-tertiary)" }}>No matches</div>}
+          {filtered.length === 0 && <div style={{ fontSize: 13, color: "var(--text-tertiary)" }}>{t("qp.noMatches")}</div>}
         </div>
       </div>
     </div>

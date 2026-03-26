@@ -51,13 +51,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         </svg>
 
         <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, fontFamily: "var(--font-display)" }}>
-          Choose Your Language
+          {t("onb.chooseLang")}
         </h1>
         <p style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 4 }}>
-          Select your preferred language
+          {t("onb.chooseLangInlineEn")}
         </p>
         <p style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 32, fontFamily: "var(--font-hebrew)", direction: "rtl" }}>
-          בחר את השפה המועדפת עליך
+          {t("onb.chooseLangInlineHe")}
         </p>
 
         <div style={{ display: "flex", gap: 16 }}>
@@ -127,8 +127,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     },
     {
       key: "screen_recording" as const,
-      label: "Screen Recording",
-      desc: "Required for fullscreen screenshot capture",
+      label: t("onb.perm.screenRecording"),
+      desc: t("onb.perm.screenRecordingDesc"),
       url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
       icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>,
     },

@@ -145,10 +145,13 @@ pub async fn ai_complete_stream(
 #[tauri::command]
 pub async fn ai_enhance_prompt(
     text: &str,
+    provider: Option<&str>,
     state: State<'_, AIState>,
 ) -> Result<AIResponse, String> {
     let request = AIRequest::enhance_prompt(text);
-    let active = state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let active = provider
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone());
     complete_with_provider(&active, &state, &request).await
 }
 
@@ -157,16 +160,20 @@ pub async fn ai_translate(
     text: &str,
     source_lang: &str,
     target_lang: &str,
+    provider: Option<&str>,
     state: State<'_, AIState>,
 ) -> Result<AIResponse, String> {
     let request = AIRequest::translate(text, source_lang, target_lang);
-    let active = state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let active = provider
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone());
     complete_with_provider(&active, &state, &request).await
 }
 
 #[tauri::command]
 pub async fn ai_fix_grammar(
     text: &str,
+    provider: Option<&str>,
     state: State<'_, AIState>,
 ) -> Result<AIResponse, String> {
     use crate::ai::provider::AIRequest;
@@ -193,7 +200,9 @@ pub async fn ai_fix_grammar(
         temperature: Some(0.2),
     };
 
-    let active = state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let active = provider
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| state.active_provider.lock().unwrap_or_else(|e| e.into_inner()).clone());
     complete_with_provider(&active, &state, &request).await
 }
 

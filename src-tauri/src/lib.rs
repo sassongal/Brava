@@ -11,12 +11,15 @@ use commands::settings::SettingsState;
 use commands::snippets::SnippetState;
 use commands::transcription::TranscriptionQueueState;
 use engine::clipboard::ClipboardManager;
+use engine::detector::WrongLayoutDetector;
 use engine::layout::LayoutEngine;
 use engine::snippets::SnippetEngine;
+use serde::Serialize;
 use storage::database::Database;
 use storage::settings::AppSettings;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use std::path::PathBuf;
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
@@ -47,6 +50,16 @@ pub struct KeyboardLockState {
     pub locked: Mutex<bool>,
 }
 
+pub struct SessionMarkerState {
+    pub path: PathBuf,
+}
+
+impl Drop for SessionMarkerState {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -66,7 +79,26 @@ pub fn run() {
             }
 
             // Load settings from database
-            let settings = AppSettings::load(&db);
+            let mut settings = AppSettings::load(&db);
+            let session_marker = app_data_dir.join("session-active.lock");
+            let mut crash_streak = db
+                .get_setting("global_detector_crash_streak")
+                .ok()
+                .flatten()
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(0);
+            if session_marker.exists() {
+                crash_streak = crash_streak.saturating_add(1);
+            } else {
+                crash_streak = 0;
+            }
+            let _ = std::fs::write(&session_marker, chrono::Utc::now().to_rfc3339());
+            let _ = db.set_setting("global_detector_crash_streak", &crash_streak.to_string());
+            if crash_streak >= 2 {
+                settings.global_typing_detection = false;
+                let _ = settings.save(&db);
+                log::warn!("Global typing detection auto-disabled after repeated abnormal exits");
+            }
 
             // Create clipboard manager and load history from database
             let clipboard_manager = Arc::new(ClipboardManager::new(settings.max_clipboard_items));
@@ -108,6 +140,9 @@ pub fn run() {
             });
             app.manage(KeyboardLockState {
                 locked: Mutex::new(false),
+            });
+            app.manage(SessionMarkerState {
+                path: session_marker,
             });
 
             // Setup system tray
@@ -173,6 +208,20 @@ pub fn run() {
                 clipboard_monitor(app_handle, monitor_clipboard, monitor_db);
             });
 
+            #[cfg(not(target_os = "macos"))]
+            {
+                if settings.global_typing_detection {
+                    let app_handle = app.handle().clone();
+                    std::thread::spawn(move || {
+                        global_key_monitor(app_handle);
+                    });
+                }
+            }
+            #[cfg(target_os = "macos")]
+            {
+                log::warn!("Global key monitor is temporarily disabled on macOS due to event-tap queue crash risk");
+            }
+
             Ok(())
         })
         // Register all IPC command handlers
@@ -183,6 +232,7 @@ pub fn run() {
             commands::layout::detect_layout,
             commands::layout::get_layouts,
             commands::layout::convert_clipboard_text,
+            commands::layout::detect_wrong_layout_alert,
             // Clipboard commands
             commands::clipboard::get_clipboard_items,
             commands::clipboard::add_clipboard_item,
@@ -242,6 +292,7 @@ pub fn run() {
             // Transcription commands
             commands::transcription::transcribe_media,
             commands::transcription::enqueue_transcription,
+            commands::transcription::enqueue_transcription_blob,
             commands::transcription::list_transcriptions,
         ])
         .run(tauri::generate_context!())
@@ -365,6 +416,11 @@ fn clipboard_monitor(
 
     let mut last_content = clipboard.get_text().unwrap_or_default();
     let mut last_prune = std::time::Instant::now();
+    let mut layout_detector = WrongLayoutDetector::new();
+    let layout_engine = LayoutEngine::new();
+    let mut last_wrong_layout_alert = Instant::now()
+        .checked_sub(Duration::from_secs(30))
+        .unwrap_or_else(Instant::now);
 
     loop {
         std::thread::sleep(Duration::from_millis(500));
@@ -395,6 +451,40 @@ fn clipboard_monitor(
                 log::error!("Failed to persist clipboard item: {}", e);
             }
             let _ = app.emit("clipboard-changed", &item);
+
+            if should_analyze_wrong_layout(&item.content) {
+                layout_detector.clear();
+                for ch in item.content.chars().take(120) {
+                    layout_detector.push_char(ch);
+                }
+                if layout_detector.analyze().is_some()
+                    && last_wrong_layout_alert.elapsed() >= Duration::from_secs(8)
+                {
+                    if let Ok(converted) = layout_engine.auto_convert(&item.content) {
+                        if converted.converted != item.content {
+                            let detected = layout_engine.detect_layout(&item.content);
+                            let converted_detected = layout_engine.detect_layout(&converted.converted);
+                            let strong_signal = (detected.detected_code == "en"
+                                && converted_detected.detected_code != "en"
+                                && converted_detected.confidence >= 0.70)
+                                || (detected.detected_code != "en"
+                                    && converted_detected.detected_code == "en"
+                                    && converted_detected.confidence >= 0.70);
+                            if strong_signal {
+                                let event = WrongLayoutDetectedEvent {
+                                    wrong_text: item.content.clone(),
+                                    suggested_text: converted.converted,
+                                    source_layout: converted.source_layout,
+                                    target_layout: converted.target_layout,
+                                    confidence: converted_detected.confidence.max(detected.confidence),
+                                };
+                                let _ = app.emit("wrong-layout-detected", event);
+                                last_wrong_layout_alert = Instant::now();
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if last_prune.elapsed() >= Duration::from_secs(1800) {
@@ -410,5 +500,107 @@ fn clipboard_monitor(
             }
             last_prune = std::time::Instant::now();
         }
+    }
+}
+
+#[derive(Clone, Serialize)]
+struct WrongLayoutDetectedEvent {
+    wrong_text: String,
+    suggested_text: String,
+    source_layout: String,
+    target_layout: String,
+    confidence: f64,
+}
+
+fn should_analyze_wrong_layout(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.len() < 4 || trimmed.len() > 200 {
+        return false;
+    }
+    let lower = trimmed.to_lowercase();
+    let blacklist = [
+        "http://", "https://", "www.", "@", ".com", ".io", ".dev", ".org", "npm ", "cargo ", "git ",
+    ];
+    if blacklist.iter().any(|token| lower.contains(token)) {
+        return false;
+    }
+    true
+}
+
+#[cfg(not(target_os = "macos"))]
+fn global_key_monitor(app: tauri::AppHandle) {
+    use rdev::{listen, EventType, Key};
+    use tauri::Emitter;
+
+    let mut detector = WrongLayoutDetector::new();
+    let engine = LayoutEngine::new();
+    let mut last_alert = Instant::now()
+        .checked_sub(Duration::from_secs(30))
+        .unwrap_or_else(Instant::now);
+
+    let callback = move |event: rdev::Event| {
+        let realtime_enabled = app
+            .try_state::<SettingsState>()
+            .and_then(|s| s.0.lock().ok().map(|st| st.realtime_detection))
+            .unwrap_or(false);
+        if !realtime_enabled {
+            return;
+        }
+
+        match event.event_type {
+            EventType::KeyPress(Key::Backspace) => detector.pop_char(),
+            EventType::KeyPress(Key::Return)
+            | EventType::KeyPress(Key::Space) => detector.push_char(' '),
+            EventType::KeyPress(_) => {
+                if let Some(name) = event.name {
+                    let mut chars = name.chars();
+                    if let Some(ch) = chars.next() {
+                        if chars.next().is_none() {
+                            detector.push_char(ch);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        let snapshot = detector.get_buffer().trim().to_string();
+        if !should_analyze_wrong_layout(&snapshot) {
+            return;
+        }
+        if last_alert.elapsed() < Duration::from_secs(8) {
+            return;
+        }
+
+        if detector.analyze().is_some() {
+            if let Ok(converted) = engine.auto_convert(&snapshot) {
+                if converted.converted != snapshot {
+                    let detected = engine.detect_layout(&snapshot);
+                    let converted_detected = engine.detect_layout(&converted.converted);
+                    let strong_signal = (detected.detected_code == "en"
+                        && converted_detected.detected_code != "en"
+                        && converted_detected.confidence >= 0.70)
+                        || (detected.detected_code != "en"
+                            && converted_detected.detected_code == "en"
+                            && converted_detected.confidence >= 0.70);
+                    if strong_signal {
+                        let event = WrongLayoutDetectedEvent {
+                            wrong_text: snapshot.clone(),
+                            suggested_text: converted.converted,
+                            source_layout: converted.source_layout,
+                            target_layout: converted.target_layout,
+                            confidence: converted_detected.confidence.max(detected.confidence),
+                        };
+                        let _ = app.emit("wrong-layout-detected", event);
+                        last_alert = Instant::now();
+                        detector.clear();
+                    }
+                }
+            }
+        }
+    };
+
+    if let Err(err) = listen(callback) {
+        log::warn!("Global key monitor failed to start: {:?}", err);
     }
 }

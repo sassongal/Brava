@@ -58,15 +58,15 @@ export function Settings() {
   }, []);
 
   const healthLabel = (providerId: string) => {
-    if (checking[providerId]) return { text: "Checking...", color: "var(--accent)" };
+    if (checking[providerId]) return { text: t("set.checking"), color: "var(--accent)" };
     const h = keyHealth[providerId];
-    if (!h) return { text: "Unknown", color: "var(--text-tertiary)" };
+    if (!h) return { text: t("set.healthUnknown"), color: "var(--text-tertiary)" };
     switch (h.status) {
-      case "valid": return { text: "Valid", color: "var(--success)" };
-      case "invalid": return { text: "Invalid", color: "var(--error)" };
-      case "missing": return { text: "Missing", color: "var(--warning)" };
-      case "unreachable": return { text: "Unreachable", color: "var(--warning)" };
-      default: return { text: "Check failed", color: "var(--error)" };
+      case "valid": return { text: t("set.healthValid"), color: "var(--success)" };
+      case "invalid": return { text: t("set.healthInvalid"), color: "var(--error)" };
+      case "missing": return { text: t("set.healthMissing"), color: "var(--warning)" };
+      case "unreachable": return { text: t("set.healthUnreachable"), color: "var(--warning)" };
+      default: return { text: t("set.healthFailed"), color: "var(--error)" };
     }
   };
 
@@ -160,9 +160,9 @@ export function Settings() {
         runHealthCheck("openrouter"),
         runHealthCheck("ollama"),
       ]);
-      showToast("Settings saved", "success");
+      showToast(t("set.saved"), "success");
     } catch (err) {
-      showToast("Failed to save settings: " + String(err), "error");
+      showToast(`${t("set.saveFailed")}: ${String(err)}`, "error");
     }
   };
 
@@ -170,9 +170,9 @@ export function Settings() {
     try {
       const json = await exportSettings();
       await navigator.clipboard.writeText(json);
-      showToast("Settings copied to clipboard", "success");
+      showToast(t("set.copiedToClipboard"), "success");
     } catch (err) {
-      showToast("Export failed: " + String(err), "error");
+      showToast(`${t("set.exportFailed")}: ${String(err)}`, "error");
     }
   };
 
@@ -182,9 +182,9 @@ export function Settings() {
       await importSettings(json);
       const updated = await getSettings();
       setSettings(updated);
-      showToast("Settings imported", "success");
+      showToast(t("set.imported"), "success");
     } catch (err) {
-      showToast("Import failed: " + String(err), "error");
+      showToast(`${t("set.importFailed")}: ${String(err)}`, "error");
     }
   };
 
@@ -194,9 +194,9 @@ export function Settings() {
       const selected = await open({ directory: true, multiple: false });
       if (!selected) return;
       const backupPath = await createFullBackup(selected as string);
-      showToast(`Backup created: ${backupPath}`, "success");
+      showToast(`${t("set.backupCreated")}: ${backupPath}`, "success");
     } catch (err) {
-      showToast("Backup failed: " + String(err), "error");
+      showToast(`${t("set.backupFailed")}: ${String(err)}`, "error");
     }
   };
 
@@ -208,9 +208,9 @@ export function Settings() {
       await restoreFullBackup(selected as string);
       const updated = await getSettings();
       setSettings(updated);
-      showToast("Backup restored successfully", "success");
+      showToast(t("set.backupRestored"), "success");
     } catch (err) {
-      showToast("Restore failed: " + String(err), "error");
+      showToast(`${t("set.restoreFailed")}: ${String(err)}`, "error");
     }
   };
 
@@ -218,18 +218,18 @@ export function Settings() {
     try {
       const newState = await toggleCaffeine();
       setCaffeineOn(newState);
-      showToast(newState ? "Caffeine mode ON - preventing sleep" : "Caffeine mode OFF", "info");
+      showToast(newState ? t("set.caffeineOn") : t("set.caffeineOff"), "info");
     } catch (err) {
-      showToast("Caffeine toggle failed: " + String(err), "error");
+      showToast(`${t("set.caffeineToggleFailed")}: ${String(err)}`, "error");
     }
   };
 
   const handleKeyboardLock = async () => {
     try {
       await toggleKeyboardLock();
-      showToast("Keyboard locked", "info");
+      showToast(t("set.keyboardLocked"), "info");
     } catch (err) {
-      showToast("Keyboard lock failed: " + String(err), "error");
+      showToast(`${t("set.keyboardLockFailed")}: ${String(err)}`, "error");
     }
   };
 
@@ -238,6 +238,7 @@ export function Settings() {
   };
 
   if (!settings) return <div className="empty-state"><div className="spinner" /></div>;
+  const isMacOS = appInfo?.platform === "macos";
 
   const TABS: { id: SettingsTab; label: string; icon: string }[] = [
     { id: "general", label: t("set.general"), icon: "\u{2699}\u{FE0F}" },
@@ -280,8 +281,8 @@ export function Settings() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <label>{t("set.language")}</label>
               <select className="select" value={locale} onChange={(e) => setLocale(e.target.value as "en" | "he")}>
-                <option value="en">English</option>
-                <option value="he">עברית</option>
+                <option value="en">{t("lang.english")}</option>
+                <option value="he">{t("lang.hebrew")}</option>
               </select>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -289,11 +290,11 @@ export function Settings() {
               <button className={`toggle ${settings.launch_at_login ? "active" : ""}`} onClick={() => updateField("launch_at_login", !settings.launch_at_login)} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
-              <label>Start minimized to tray</label>
+              <label>{t("set.startMinimized")}</label>
               <button className={`toggle ${settings.start_minimized_to_tray ? "active" : ""}`} onClick={() => updateField("start_minimized_to_tray", !settings.start_minimized_to_tray)} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
-              <label>UI Scale</label>
+              <label>{t("set.uiScale")}</label>
               <input className="input" type="number" step={0.1} min={0.8} max={1.6} value={settings.ui_scale} onChange={(e) => updateField("ui_scale", Number(e.target.value) || 1)} style={{ width: "90px" }} />
             </div>
           </div>
@@ -309,12 +310,12 @@ export function Settings() {
               <input className="input" type="number" value={settings.max_clipboard_items} onChange={(e) => updateField("max_clipboard_items", parseInt(e.target.value) || 100)} style={{ width: "80px" }} min={10} max={1000} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <label>Preview length</label>
+              <label>{t("set.previewLength")}</label>
               <input className="input" type="number" value={settings.clipboard_preview_length} onChange={(e) => updateField("clipboard_preview_length", parseInt(e.target.value) || 200)} style={{ width: "90px" }} min={20} max={2000} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <label>Auto-delete after days</label>
-              <input className="input" type="number" value={settings.clipboard_retention_days ?? ""} onChange={(e) => updateField("clipboard_retention_days", e.target.value ? parseInt(e.target.value) : null)} style={{ width: "90px" }} min={1} max={3650} placeholder="off" />
+              <label>{t("set.autoDeleteDays")}</label>
+              <input className="input" type="number" value={settings.clipboard_retention_days ?? ""} onChange={(e) => updateField("clipboard_retention_days", e.target.value ? parseInt(e.target.value) : null)} style={{ width: "90px" }} min={1} max={3650} placeholder={t("set.off")} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <label>{t("set.autoCategorize")}</label>
@@ -329,7 +330,7 @@ export function Settings() {
               <button className={`toggle ${settings.snippets_enabled ? "active" : ""}`} onClick={() => updateField("snippets_enabled", !settings.snippets_enabled)} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
-              <label>Expansion delay (ms)</label>
+              <label>{t("set.expansionDelayMs")}</label>
               <input className="input" type="number" value={settings.snippet_expansion_delay_ms} onChange={(e) => updateField("snippet_expansion_delay_ms", parseInt(e.target.value) || 120)} style={{ width: "90px" }} min={0} max={5000} />
             </div>
           </div>
@@ -345,8 +346,8 @@ export function Settings() {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <div>
-                <label>Toast on transcription complete</label>
-                <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>Controls global completion notification</p>
+                <label>{t("set.transcriptionToast")}</label>
+                <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>{t("set.transcriptionToastDesc")}</p>
               </div>
               <button className={`toggle ${settings.notification_transcription_complete ? "active" : ""}`} onClick={() => updateField("notification_transcription_complete", !settings.notification_transcription_complete)} />
             </div>
@@ -388,11 +389,11 @@ export function Settings() {
             </select>
           </div>
           <div className="card">
-            <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px" }}>AI Output Language</h3>
+            <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px" }}>{t("set.aiOutputLanguage")}</h3>
             <select className="select" style={{ width: "100%" }} value={settings.ai_output_language} onChange={(e) => updateField("ai_output_language", e.target.value)}>
-              <option value="auto">Auto (match input)</option>
-              <option value="en">English</option>
-              <option value="he">Hebrew</option>
+              <option value="auto">{t("set.autoMatchInput")}</option>
+              <option value="en">{t("lang.english")}</option>
+              <option value="he">{t("lang.hebrew")}</option>
             </select>
           </div>
 
@@ -409,7 +410,7 @@ export function Settings() {
                   {healthLabel(provider.id).text}
                 </span>
               </div>
-              <input className="input" type="password" placeholder="API Key (saved in OS keychain)" value={provider.key} onChange={(e) => provider.setKey(e.target.value)} />
+              <input className="input" type="password" placeholder={t("set.apiKeyPlaceholder")} value={provider.key} onChange={(e) => provider.setKey(e.target.value)} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", gap: "8px" }}>
                 <p style={{ fontSize: "11px", color: "var(--text-tertiary)", margin: 0, flex: 1 }}>{provider.hint}</p>
                 <button
@@ -417,7 +418,7 @@ export function Settings() {
                   disabled={checking[provider.id]}
                   onClick={() => void runHealthCheck(provider.id, provider.key)}
                 >
-                  {checking[provider.id] ? "Checking..." : "Test key"}
+                  {checking[provider.id] ? t("set.checking") : t("set.testKey")}
                 </button>
               </div>
               {keyHealth[provider.id]?.message && (
@@ -430,7 +431,7 @@ export function Settings() {
 
           <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: 600 }}>Ollama (Local)</h3>
+              <h3 style={{ fontSize: "14px", fontWeight: 600 }}>{t("set.ollamaLocal")}</h3>
               <span style={{ fontSize: "12px", fontWeight: 600, color: healthLabel("ollama").color }}>
                 {healthLabel("ollama").text}
               </span>
@@ -438,10 +439,10 @@ export function Settings() {
             <input className="input" placeholder="http://localhost:11434" value={settings.ollama_endpoint} onChange={(e) => updateField("ollama_endpoint", e.target.value)} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", gap: "8px" }}>
               <p style={{ fontSize: "11px", color: "var(--text-tertiary)", margin: 0, flex: 1 }}>
-                Free, private, runs on your machine. Install from ollama.com
+                {t("set.ollamaHint")}
               </p>
               <button className="btn btn-sm" disabled={checking.ollama} onClick={() => void runHealthCheck("ollama")}>
-                {checking.ollama ? "Checking..." : "Test connection"}
+                {checking.ollama ? t("set.checking") : t("set.testConnection")}
               </button>
             </div>
             {keyHealth.ollama?.message && (
@@ -466,6 +467,20 @@ export function Settings() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <label>{t("set.realtimeDetection")}</label>
               <button className={`toggle ${settings.realtime_detection ? "active" : ""}`} onClick={() => updateField("realtime_detection", !settings.realtime_detection)} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+              <div>
+                <label>{t("set.globalTypingDetection")}</label>
+                <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                  {isMacOS ? t("set.globalTypingDetectionMacDesc") : t("set.globalTypingDetectionDesc")}
+                </p>
+              </div>
+              <button
+                className={`toggle ${settings.global_typing_detection ? "active" : ""}`}
+                onClick={() => updateField("global_typing_detection", !settings.global_typing_detection)}
+                disabled={isMacOS}
+                title={isMacOS ? t("set.globalTypingDetectionMacTitle") : undefined}
+              />
             </div>
           </div>
 
@@ -494,7 +509,7 @@ export function Settings() {
               <div className="card" style={{ padding: "32px", textAlign: "center", minWidth: "300px" }}>
                 <p style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>{t("set.pressShortcut")}</p>
                 <p style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
-                  Esc to cancel
+                  {t("set.escToCancel")}
                 </p>
               </div>
             </div>
@@ -542,11 +557,11 @@ export function Settings() {
           <div className="card" style={{ textAlign: "center", padding: "32px" }}>
             <div style={{ fontSize: "48px", marginBottom: "8px" }}>{"\u{1F4A1}"}</div>
             <h2 style={{ fontSize: "24px", fontWeight: 700 }}>{appInfo.name}</h2>
-            <p style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>Version {appInfo.version}</p>
+            <p style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>{t("set.versionPrefix")} {appInfo.version}</p>
             <p style={{ fontSize: "14px", color: "var(--text-secondary)", maxWidth: "400px", margin: "0 auto 16px" }}>{appInfo.description}</p>
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", fontSize: "13px", color: "var(--text-tertiary)" }}>
-              <span>Platform: {appInfo.platform}</span>
-              <span>Architecture: {appInfo.arch}</span>
+              <span>{t("set.platformPrefix")}: {appInfo.platform}</span>
+              <span>{t("set.archPrefix")}: {appInfo.arch}</span>
             </div>
           </div>
 
@@ -555,8 +570,8 @@ export function Settings() {
             <div style={{ display: "flex", gap: "8px" }}>
               <button className="btn" onClick={handleExport}>{"\u{1F4E4}"} {t("set.export")}</button>
               <button className="btn" onClick={handleImport}>{"\u{1F4E5}"} {t("set.import")}</button>
-              <button className="btn" onClick={handleCreateBackup}>{"\u{1F4BE}"} Full Backup</button>
-              <button className="btn" onClick={handleRestoreBackup}>{"\u{267B}\u{FE0F}"} Restore Backup</button>
+              <button className="btn" onClick={handleCreateBackup}>{"\u{1F4BE}"} {t("set.fullBackup")}</button>
+              <button className="btn" onClick={handleRestoreBackup}>{"\u{267B}\u{FE0F}"} {t("set.restoreBackup")}</button>
             </div>
             <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "8px" }}>{t("set.exportHint")}</p>
           </div>

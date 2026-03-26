@@ -73,7 +73,7 @@ export function ClipboardHistory() {
       }
       showToast(t("clip.copied"), "success");
     } catch (err) {
-      showToast("Failed to copy: " + String(err), "error");
+      showToast(`${t("common.failedCopy")}: ${String(err)}`, "error");
     }
   };
 
@@ -82,7 +82,7 @@ export function ClipboardHistory() {
       await deleteClipboardItem(id);
       setItems((prev) => prev.filter((i) => i.id !== id));
     } catch (err) {
-      showToast("Failed: " + String(err), "error");
+      showToast(`${t("common.failed")}: ${String(err)}`, "error");
     }
   };
 
@@ -91,7 +91,7 @@ export function ClipboardHistory() {
       await toggleClipboardPin(id);
       loadItems();
     } catch (err) {
-      showToast("Failed: " + String(err), "error");
+      showToast(`${t("common.failed")}: ${String(err)}`, "error");
     }
   };
 
@@ -100,7 +100,7 @@ export function ClipboardHistory() {
       await toggleClipboardFavorite(id);
       loadItems();
     } catch (err) {
-      showToast("Failed: " + String(err), "error");
+      showToast(`${t("common.failed")}: ${String(err)}`, "error");
     }
   };
 
@@ -130,7 +130,7 @@ export function ClipboardHistory() {
         .join(" ");
     }
     await writeSystemClipboard(out);
-    showToast("Result copied to clipboard", "success");
+    showToast(t("common.resultCopied"), "success");
   };
 
   const formatTime = (dateStr: string) => {
@@ -172,10 +172,10 @@ export function ClipboardHistory() {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <button className="btn btn-sm" disabled={selectedIds.size < 2} onClick={() => void applyTransform("merge")}>Merge</button>
-        <button className="btn btn-sm" disabled={selectedIds.size < 1} onClick={() => void applyTransform("upper")}>UPPER</button>
-        <button className="btn btn-sm" disabled={selectedIds.size < 1} onClick={() => void applyTransform("lower")}>lower</button>
-        <button className="btn btn-sm" disabled={selectedIds.size < 1} onClick={() => void applyTransform("title")}>Title Case</button>
+        <button className="btn btn-sm" disabled={selectedIds.size < 2} onClick={() => void applyTransform("merge")}>{t("clip.transform.merge")}</button>
+        <button className="btn btn-sm" disabled={selectedIds.size < 1} onClick={() => void applyTransform("upper")}>{t("clip.transform.upper")}</button>
+        <button className="btn btn-sm" disabled={selectedIds.size < 1} onClick={() => void applyTransform("lower")}>{t("clip.transform.lower")}</button>
+        <button className="btn btn-sm" disabled={selectedIds.size < 1} onClick={() => void applyTransform("title")}>{t("clip.transform.title")}</button>
       </div>
 
       <div className="search-bar">
@@ -241,8 +241,8 @@ export function ClipboardHistory() {
                     <span className={`badge badge-${item.category}`}>
                       {CATEGORY_ICONS[item.category] || ""} {item.category}
                     </span>
-                    {item.pinned && <span title="Pinned">{"\u{1F4CC}"}</span>}
-                    {item.favorite && <span title="Favorite">{"\u{2B50}"}</span>}
+                    {item.pinned && <span title={t("common.pinned")}>{"\u{1F4CC}"}</span>}
+                    {item.favorite && <span title={t("common.favorite")}>{"\u{2B50}"}</span>}
                     <span
                       style={{
                         fontSize: "11px",
@@ -256,7 +256,7 @@ export function ClipboardHistory() {
                   {item.image_path ? (
                     <img
                       src={convertFileSrc(item.image_path)}
-                      alt="Clipboard image"
+                      alt={t("clip.imageAlt")}
                       style={{
                         maxWidth: "100%",
                         maxHeight: "80px",
@@ -289,28 +289,28 @@ export function ClipboardHistory() {
                   <button
                     className="btn-icon"
                     onClick={() => handleCopy(item)}
-                    title="Copy"
+                    title={t("common.copy")}
                   >
                     {"\u{1F4CB}"}
                   </button>
                   <button
                     className="btn-icon"
                     onClick={() => handlePin(item.id)}
-                    title={item.pinned ? "Unpin" : "Pin"}
+                    title={item.pinned ? t("common.unpin") : t("common.pin")}
                   >
                     {"\u{1F4CC}"}
                   </button>
                   <button
                     className="btn-icon"
                     onClick={() => handleFavorite(item.id)}
-                    title="Favorite"
+                    title={t("common.favorite")}
                   >
                     {item.favorite ? "\u{2B50}" : "\u{2606}"}
                   </button>
                   <button
                     className="btn-icon"
                     onClick={() => handleDelete(item.id)}
-                    title="Delete"
+                    title={t("common.delete")}
                     style={{ color: "var(--error)" }}
                   >
                     {"\u{1F5D1}"}

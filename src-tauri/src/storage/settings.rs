@@ -17,6 +17,8 @@ pub struct AppSettings {
     pub default_target_layout: String,
     pub auto_detect_layout: bool,
     pub realtime_detection: bool,
+    #[serde(default = "default_global_typing_detection")]
+    pub global_typing_detection: bool,
 
     // Clipboard
     pub clipboard_enabled: bool,
@@ -65,6 +67,9 @@ fn default_ui_scale() -> f32 { 1.0 }
 fn default_clipboard_preview_length() -> usize { 200 }
 fn default_snippet_expansion_delay_ms() -> u32 { 120 }
 fn default_ai_output_language() -> String { "auto".to_string() }
+fn default_global_typing_detection() -> bool {
+    !cfg!(target_os = "macos")
+}
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -79,6 +84,7 @@ impl Default for AppSettings {
             default_target_layout: "en".to_string(),
             auto_detect_layout: true,
             realtime_detection: true,
+            global_typing_detection: default_global_typing_detection(),
 
             clipboard_enabled: true,
             max_clipboard_items: 500,

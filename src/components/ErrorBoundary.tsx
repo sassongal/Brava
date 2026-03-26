@@ -1,4 +1,5 @@
 import React from "react";
+import { t } from "../lib/i18n";
 
 interface Props {
   children: React.ReactNode;
@@ -29,7 +30,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
       return (
         <div className="empty-state" style={{ padding: 24 }}>
           <div className="empty-state-icon">{"\u26A0\uFE0F"}</div>
-          <p>Something went wrong in this screen.</p>
+          <p>{t("err.screenCrash")}</p>
           <p style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{this.state.message}</p>
         </div>
       );

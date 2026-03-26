@@ -117,6 +117,74 @@ pub async fn enqueue_transcription(
 }
 
 #[tauri::command]
+pub async fn enqueue_transcription_blob(
+    data_base64: &str,
+    mime_type: Option<&str>,
+    file_name: Option<&str>,
+    app: tauri::AppHandle,
+    db: State<'_, DatabaseState>,
+    queue_state: State<'_, TranscriptionQueueState>,
+) -> Result<EnqueueTranscriptionResponse, String> {
+    let app_data = app.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let recordings_dir = app_data.join("recordings");
+    std::fs::create_dir_all(&recordings_dir)
+        .map_err(|e| format!("Failed to create recordings dir: {}", e))?;
+
+    let ext = match mime_type.unwrap_or("audio/webm") {
+        "audio/webm" | "video/webm" => "webm",
+        "audio/wav" => "wav",
+        "audio/mp4" | "video/mp4" => "m4a",
+        "audio/mpeg" => "mp3",
+        _ => "webm",
+    };
+
+    let bytes = base64_decode(data_base64)?;
+    if bytes.is_empty() {
+        return Err("Recording is empty".to_string());
+    }
+    if bytes.len() > 25 * 1024 * 1024 {
+        return Err("Recording is too large (max 25MB)".to_string());
+    }
+
+    let name = file_name
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| format!("voice_{}.{}", chrono::Utc::now().timestamp_millis(), ext));
+    let path = recordings_dir.join(name);
+    std::fs::write(&path, bytes)
+        .map_err(|e| format!("Failed to save recording: {}", e))?;
+
+    let path_str = path.to_string_lossy().to_string();
+    let job_id = uuid::Uuid::new_v4().to_string();
+    db.0.insert_transcription_job(
+        &job_id,
+        path.file_name().and_then(|f| f.to_str()).unwrap_or("voice_recording"),
+        &path_str,
+    )?;
+    emit_job_update(&app, &job_id, "queued", path.file_name().and_then(|f| f.to_str()).unwrap_or("voice_recording"), None);
+
+    {
+        let mut queue = queue_state.queue.lock().map_err(|e| e.to_string())?;
+        queue.push_back(TranscriptionTask {
+            job_id: job_id.clone(),
+            file_path: path_str,
+        });
+    }
+
+    start_worker_if_needed(
+        app,
+        db.0.clone(),
+        queue_state.inner().queue.clone(),
+        queue_state.inner().worker_running.clone(),
+    );
+
+    Ok(EnqueueTranscriptionResponse {
+        job_id,
+        status: "queued".to_string(),
+    })
+}
+
+#[tauri::command]
 pub fn list_transcriptions(
     limit: Option<usize>,
     offset: Option<usize>,
@@ -349,4 +417,29 @@ impl From<TranscriptionJobRow> for TranscriptionJobRecord {
             completed_at: value.completed_at,
         }
     }
+}
+
+fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
+    static TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut output = Vec::with_capacity(input.len() * 3 / 4);
+    let mut buf: u32 = 0;
+    let mut bits: u32 = 0;
+
+    for &b in input.as_bytes() {
+        if b == b'=' || b == b'\n' || b == b'\r' || b == b' ' {
+            continue;
+        }
+        let val = TABLE
+            .iter()
+            .position(|&c| c == b)
+            .ok_or_else(|| format!("Invalid base64 character: {}", b as char))? as u32;
+        buf = (buf << 6) | val;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            output.push((buf >> bits) as u8);
+            buf &= (1 << bits) - 1;
+        }
+    }
+    Ok(output)
 }

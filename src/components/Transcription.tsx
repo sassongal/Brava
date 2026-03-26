@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   enqueueTranscription,
+  enqueueTranscriptionBlob,
   listTranscriptions,
   writeSystemClipboard,
   type TranscriptionJobEvent,
@@ -17,6 +18,8 @@ export function Transcription() {
   const [enqueuing, setEnqueuing] = useState(false);
   const [filePath, setFilePath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
 
   const refreshJobs = async () => {
     setLoadingList(true);
@@ -77,13 +80,69 @@ export function Transcription() {
     setError(null);
     try {
       await enqueueTranscription(path);
-      showToast("Transcription queued", "success");
+      showToast(t("trans.queued"), "success");
       await refreshJobs();
     } catch (err) {
       setError(String(err));
       showToast(String(err), "error");
     }
     setEnqueuing(false);
+  };
+
+  const toBase64 = async (blob: Blob): Promise<string> => {
+    const buffer = await blob.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i += 1) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  };
+
+  const startQuickRecording = async () => {
+    if (recording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        if (blob.size === 0) {
+          showToast(t("trans.recordingEmpty"), "warning");
+          return;
+        }
+        setEnqueuing(true);
+        try {
+          const base64 = await toBase64(blob);
+          await enqueueTranscriptionBlob(base64, "audio/webm");
+          showToast(t("trans.recordingQueued"), "success");
+          await refreshJobs();
+        } catch (err) {
+          showToast(String(err), "error");
+        } finally {
+          setEnqueuing(false);
+        }
+      };
+      recorder.start(300);
+      setMediaRecorder(recorder);
+      setRecording(true);
+      showToast(t("trans.recordingStarted"), "info");
+    } catch (err) {
+      showToast(String(err), "error");
+    }
+  };
+
+  const stopQuickRecording = () => {
+    if (!mediaRecorder) return;
+    mediaRecorder.stop();
+    setMediaRecorder(null);
+    setRecording(false);
   };
 
   const latestCompleted = useMemo(
@@ -139,11 +198,23 @@ export function Transcription() {
         )}
       </div>
 
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {!recording ? (
+          <button className="btn btn-primary" onClick={startQuickRecording}>
+            🎙️ {t("trans.quickRecord")}
+          </button>
+        ) : (
+          <button className="btn btn-danger" onClick={stopQuickRecording}>
+            ⏹️ {t("trans.stopRecord")}
+          </button>
+        )}
+      </div>
+
       {/* Loading */}
       {(enqueuing || loadingList) && (
         <div className="card" style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px", marginBottom: "16px" }}>
           <div className="spinner" />
-          <span style={{ fontSize: 14 }}>{enqueuing ? "Queueing transcription..." : "Loading transcriptions..."}</span>
+          <span style={{ fontSize: 14 }}>{enqueuing ? t("trans.queueing") : t("trans.loading")}</span>
         </div>
       )}
 
@@ -186,8 +257,8 @@ export function Transcription() {
       )}
 
       <div className="card" style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>History</div>
-        {jobs.length === 0 && <div style={{ fontSize: 13, color: "var(--text-tertiary)" }}>No transcriptions yet.</div>}
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{t("trans.history")}</div>
+        {jobs.length === 0 && <div style={{ fontSize: 13, color: "var(--text-tertiary)" }}>{t("trans.none")}</div>}
         {jobs.map((job) => (
           <div key={job.id} style={{ borderTop: "1px solid var(--border)", padding: "10px 0" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>

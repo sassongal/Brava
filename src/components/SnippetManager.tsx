@@ -62,12 +62,12 @@ export function SnippetManager() {
       } else {
         await addSnippet(trigger, content, description || undefined, folder || undefined, isRegex);
       }
-      showToast(editingId ? "Snippet updated" : "Snippet created", "success");
+      showToast(editingId ? t("snip.updatedToast") : t("snip.createdToast"), "success");
       resetForm();
       loadSnippets();
     } catch (err) {
       console.error("Failed to save snippet:", err);
-      showToast("Failed to save snippet: " + String(err), "error");
+      showToast(`${t("snip.saveFailed")}: ${String(err)}`, "error");
     }
   };
 
@@ -83,10 +83,10 @@ export function SnippetManager() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this snippet?")) return;
+    if (!confirm(t("snip.confirmDelete"))) return;
     await deleteSnippet(id);
     loadSnippets();
-    showToast("Snippet deleted", "info");
+    showToast(t("snip.deletedToast"), "info");
   };
 
   const resetForm = () => {
@@ -101,14 +101,14 @@ export function SnippetManager() {
   };
 
   const VARIABLE_CHIPS = [
-    { label: "{date}", desc: "Current date" },
-    { label: "{time}", desc: "Current time" },
-    { label: "{datetime}", desc: "Date and time" },
-    { label: "{clipboard}", desc: "Clipboard content" },
-    { label: "{day}", desc: "Day name" },
-    { label: "{month}", desc: "Month name" },
-    { label: "{year}", desc: "Current year" },
-    { label: "{timestamp}", desc: "Unix timestamp" },
+    { label: "{date}", desc: t("snip.var.date") },
+    { label: "{time}", desc: t("snip.var.time") },
+    { label: "{datetime}", desc: t("snip.var.datetime") },
+    { label: "{clipboard}", desc: t("snip.var.clipboard") },
+    { label: "{day}", desc: t("snip.var.day") },
+    { label: "{month}", desc: t("snip.var.month") },
+    { label: "{year}", desc: t("snip.var.year") },
+    { label: "{timestamp}", desc: t("snip.var.timestamp") },
   ];
 
   const filteredSnippets = snippets.filter((s) => {
@@ -139,7 +139,7 @@ export function SnippetManager() {
               </label>
               <input
                 className="input"
-                placeholder={isRegex ? "e.g., date:(tomorrow|next week)" : "e.g., /sig, //email, .addr"}
+                placeholder={isRegex ? t("snip.triggerRegexPlaceholder") : t("snip.triggerPlaceholder")}
                 value={trigger}
                 onChange={(e) => setTrigger(e.target.value)}
                 maxLength={20}
@@ -149,13 +149,13 @@ export function SnippetManager() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
-                  Folder
+                  {t("snip.folder")}
                 </label>
-                <input className="input" placeholder="e.g., Email, Dev, Sales" value={folder} onChange={(e) => setFolder(e.target.value)} />
+                <input className="input" placeholder={t("snip.folderPlaceholder")} value={folder} onChange={(e) => setFolder(e.target.value)} />
               </div>
               <div style={{ width: 180 }}>
                 <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
-                  Regex trigger
+                  {t("snip.regexTrigger")}
                 </label>
                 <button className={`toggle ${isRegex ? "active" : ""}`} onClick={() => setIsRegex(!isRegex)} />
               </div>
@@ -167,7 +167,7 @@ export function SnippetManager() {
               </label>
               <textarea
                 className="input"
-                placeholder="e.g., Best regards,\nJohn Doe"
+                placeholder={t("snip.contentPlaceholder")}
                 value={content}
                 onChange={(e) => {
                   setContent(e.target.value);
@@ -215,7 +215,7 @@ export function SnippetManager() {
               </label>
               <input
                 className="input"
-                placeholder="What this snippet is for"
+                placeholder={t("snip.descriptionPlaceholder")}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
@@ -246,7 +246,7 @@ export function SnippetManager() {
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <select className="select" value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)}>
-          <option value="">All folders</option>
+          <option value="">{t("snip.allFolders")}</option>
           {folders.map((f) => (
             <option key={f} value={f}>{f}</option>
           ))}
@@ -280,7 +280,7 @@ export function SnippetManager() {
                   }}>
                     {snippet.trigger}
                   </code>
-                  {snippet.is_regex && <span className="badge badge-code" style={{ marginLeft: 6 }}>regex</span>}
+                  {snippet.is_regex && <span className="badge badge-code" style={{ marginLeft: 6 }}>{t("snip.regexBadge")}</span>}
                   {snippet.folder && <span className="badge badge-url" style={{ marginLeft: 6 }}>{snippet.folder}</span>}
                   {snippet.description && (
                     <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>
@@ -302,13 +302,13 @@ export function SnippetManager() {
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: "4px" }}>
-                  <button className="btn-icon" onClick={() => handleEdit(snippet)} title="Edit">
+                  <button className="btn-icon" onClick={() => handleEdit(snippet)} title={t("common.edit")}>
                     {"\u{270F}\u{FE0F}"}
                   </button>
                   <button
                     className="btn-icon"
                     onClick={() => handleDelete(snippet.id)}
-                    title="Delete"
+                    title={t("common.delete")}
                     style={{ color: "var(--error)" }}
                   >
                     {"\u{1F5D1}"}

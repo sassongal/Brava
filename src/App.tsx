@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard, type AppSettings } from "./lib/tauri";
+import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard, type AppSettings, type WrongLayoutAlert } from "./lib/tauri";
 import { showToast } from "./components/Toast";
 import type { TranscriptionJobEvent } from "./lib/tauri";
 import { ClipboardHistory } from "./components/ClipboardHistory";
@@ -27,6 +27,8 @@ function App() {
   const [transcriptionBadgeCount, setTranscriptionBadgeCount] = useState(0);
   const [quickPasteOpen, setQuickPasteOpen] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [wrongLayoutAlert, setWrongLayoutAlert] = useState<WrongLayoutAlert | null>(null);
+  const [lastWrongLayoutTs, setLastWrongLayoutTs] = useState(0);
 
   useEffect(() => {
     initLocale();
@@ -42,7 +44,7 @@ function App() {
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: "clipboard", label: t("app.clipboard"), icon: "" },
-    { id: "search", label: "Search", icon: "" },
+    { id: "search", label: t("app.search"), icon: "" },
     { id: "converter", label: t("app.converter"), icon: "" },
     { id: "snippets", label: t("app.snippets"), icon: "" },
     { id: "ai", label: t("app.ai"), icon: "" },
@@ -68,7 +70,7 @@ function App() {
       try {
         const result = await convertClipboardText();
         playConvertSound();
-        showToast(`Converted: ${result.slice(0, 50)}...`, "success");
+        showToast(`${t("conv.convertedPrefix")}: ${result.slice(0, 50)}...`, "success");
 
         // Auto grammar correction if enabled
         const settings = await getSettings();
@@ -77,12 +79,12 @@ function App() {
             const fixed = await aiFixGrammar(result);
             if (fixed.content !== result) {
               await writeSystemClipboard(fixed.content);
-              showToast("Grammar corrected", "success");
+              showToast(t("ai.grammarCorrected"), "success");
             }
           } catch { /* grammar fix is best-effort */ }
         }
       } catch (err) {
-        showToast("Convert failed: " + String(err), "error");
+        showToast(`${t("conv.failed")}: ${String(err)}`, "error");
       }
     }));
 
@@ -101,6 +103,10 @@ function App() {
     unsubs.push(listen("hotkey-translate", () => {
       navigate("ai");
     }));
+    unsubs.push(listen("hotkey-voice", () => {
+      navigate("transcription");
+      showToast(t("trans.quickRecordHint"), "info");
+    }));
 
     unsubs.push(listen("hotkey-screenshot", async () => {
       try {
@@ -109,7 +115,7 @@ function App() {
         playShutterSound();
       } catch (err) {
         if (!String(err).includes("cancelled")) {
-          showToast("Screenshot failed: " + String(err), "error");
+          showToast(`${t("shot.failed")}: ${String(err)}`, "error");
         }
       }
     }));
@@ -120,18 +126,51 @@ function App() {
         setTranscriptionBadgeCount((prev) => prev + 1);
       }
       if (appSettings?.notification_transcription_complete ?? true) {
-        showToast(`Transcription ready: ${payload.file_name}`, "success");
+        showToast(`${t("trans.readyPrefix")}: ${payload.file_name}`, "success");
       }
     }));
 
+    unsubs.push(listen<WrongLayoutAlert>("wrong-layout-detected", async (event) => {
+      if (!appSettings?.realtime_detection) return;
+      const now = Date.now();
+      if (now - lastWrongLayoutTs < 8000) return;
+      const alert = event.payload;
+      if (!alert) return;
+      setWrongLayoutAlert(alert);
+      setLastWrongLayoutTs(now);
+      playConvertSound();
+    }));
+
     return () => { unsubs.forEach((u) => u.then((fn) => fn())); };
-  }, [navigate, activeTab, appSettings]);
+  }, [navigate, activeTab, appSettings, lastWrongLayoutTs, t]);
 
   useEffect(() => {
     if (activeTab === "transcription") {
       setTranscriptionBadgeCount(0);
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!wrongLayoutAlert) return;
+    const timer = setTimeout(() => setWrongLayoutAlert(null), 4000);
+    const onKey = async (e: KeyboardEvent) => {
+      if (!wrongLayoutAlert) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setWrongLayoutAlert(null);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        await writeSystemClipboard(wrongLayoutAlert.suggested_text);
+        showToast(t("conv.autoApplied"), "success");
+        setWrongLayoutAlert(null);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [wrongLayoutAlert, t]);
 
   const completeOnboarding = () => {
     localStorage.setItem("brava_onboarded", "true");
@@ -237,6 +276,36 @@ function App() {
       <ToastContainer />
       <KeyboardLock />
       <QuickPaste open={quickPasteOpen} onClose={() => setQuickPasteOpen(false)} />
+      {wrongLayoutAlert && (
+        <div style={{
+          position: "fixed",
+          right: 16,
+          bottom: 16,
+          zIndex: 10001,
+          maxWidth: 420,
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border-primary)",
+          borderRadius: "10px",
+          padding: "12px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+        }}>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>{t("conv.detectedWrongLayout")}</div>
+          <div style={{ fontSize: 13, marginBottom: 6, opacity: 0.85 }}>{wrongLayoutAlert.wrong_text}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{wrongLayoutAlert.suggested_text}</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-sm btn-primary" onClick={async () => {
+              await writeSystemClipboard(wrongLayoutAlert.suggested_text);
+              showToast(t("conv.autoApplied"), "success");
+              setWrongLayoutAlert(null);
+            }}>
+              Enter - {t("conv.applyFix")}
+            </button>
+            <button className="btn btn-sm" onClick={() => setWrongLayoutAlert(null)}>
+              Esc - {t("conv.dismiss")}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

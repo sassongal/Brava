@@ -125,37 +125,48 @@ impl SnippetEngine {
     /// Look up a snippet by matching the end of a buffer against triggers.
     /// Returns the matched snippet if the buffer ends with a trigger.
     pub fn match_buffer(&self, buffer: &str) -> Option<&Snippet> {
-        let mut regex_match: Option<&Snippet> = None;
-        for s in self.snippets.values().filter(|s| s.enabled && s.is_regex) {
-            if let Ok(re) = Regex::new(&s.trigger) {
-                if re.is_match(buffer) {
-                    regex_match = Some(s);
-                }
-            }
-        }
-        if regex_match.is_some() {
-            return regex_match;
-        }
-
-        // Try matching from each possible start position (longest match wins)
+        // First pass: exact trigger match from buffer suffix (highest priority)
         let chars: Vec<char> = buffer.chars().collect();
-        let mut best_match: Option<&str> = None;
+        let mut best_match: Option<(&str, usize)> = None;
 
         for start in 0..chars.len() {
             let mut node = &self.root;
+            let mut consumed = 0usize;
             for &c in &chars[start..] {
                 if let Some(child) = node.children.get(&c) {
                     node = child;
+                    consumed += 1;
                 } else {
                     break;
                 }
             }
             if let Some(ref id) = node.snippet_id {
-                best_match = Some(id.as_str());
+                match best_match {
+                    Some((_, best_len)) if best_len >= consumed => {}
+                    _ => best_match = Some((id.as_str(), consumed)),
+                }
             }
         }
 
-        best_match.and_then(|id| self.snippets.get(id))
+        if let Some((id, _)) = best_match {
+            return self.snippets.get(id);
+        }
+
+        // Second pass: regex match against suffix only; choose longest trigger.
+        let mut regex_match: Option<(&Snippet, usize)> = None;
+        for s in self.snippets.values().filter(|s| s.enabled && s.is_regex) {
+            let anchored = format!("(?:{})$", s.trigger);
+            if let Ok(re) = Regex::new(&anchored) {
+                if re.is_match(buffer) {
+                    let score = s.trigger.len();
+                    match regex_match {
+                        Some((_, best_score)) if best_score >= score => {}
+                        _ => regex_match = Some((s, score)),
+                    }
+                }
+            }
+        }
+        regex_match.map(|(snippet, _)| snippet)
     }
 
     /// Expand dynamic variables in snippet content

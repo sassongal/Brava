@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   aiComplete,
   aiCompleteStream,
   aiEnhancePrompt,
   aiTranslate,
+  checkApiKeyHealth,
+  getAiProviders,
   readSystemClipboard,
   writeSystemClipboard,
+  type AIProviderInfo,
   type AIResponse,
 } from "../lib/tauri";
 import { showToast } from "./Toast";
@@ -22,21 +25,65 @@ export function AITools() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streamMode, setStreamMode] = useState(true);
+  const [providers, setProviders] = useState<AIProviderInfo[]>([]);
+  const [providerHealth, setProviderHealth] = useState<Record<string, string>>({});
+  const [selectedProvider, setSelectedProvider] = useState<string>("");
 
   // Translation
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("English");
+
+  useEffect(() => {
+    void getAiProviders()
+      .then(async (items) => {
+        setProviders(items);
+        const checks = await Promise.all(
+          items.map(async (p) => {
+            try {
+              const health = await checkApiKeyHealth(p.id);
+              return [p.id, health.status] as const;
+            } catch {
+              return [p.id, "check_failed"] as const;
+            }
+          }),
+        );
+        const map = Object.fromEntries(checks);
+        setProviderHealth(map);
+        const firstValid = items.find((p) => map[p.id] === "valid");
+        if (firstValid) setSelectedProvider(firstValid.id);
+      })
+      .catch((err) => {
+        setError(String(err));
+      });
+  }, []);
+
+  const validProviders = useMemo(
+    () => providers.filter((p) => providerHealth[p.id] === "valid"),
+    [providers, providerHealth],
+  );
+
+  useEffect(() => {
+    if (!selectedProvider && validProviders.length > 0) {
+      setSelectedProvider(validProviders[0].id);
+    }
+    if (selectedProvider && !validProviders.some((p) => p.id === selectedProvider)) {
+      setSelectedProvider(validProviders[0]?.id ?? "");
+    }
+  }, [selectedProvider, validProviders]);
 
   const handleEnhance = async () => {
     if (!input.trim()) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await aiEnhancePrompt(input);
+      if (!selectedProvider) {
+        throw new Error(t("ai.chooseProvider"));
+      }
+      const result = await aiEnhancePrompt(input, selectedProvider);
       setOutput(result);
     } catch (err) {
       setError(String(err));
-      showToast("AI request failed: " + String(err), "error");
+      showToast(`${t("ai.requestFailed")}: ${String(err)}`, "error");
     }
     setLoading(false);
   };
@@ -46,11 +93,14 @@ export function AITools() {
     setLoading(true);
     setError(null);
     try {
-      const result = await aiTranslate(input, sourceLang, targetLang);
+      if (!selectedProvider) {
+        throw new Error(t("ai.chooseProvider"));
+      }
+      const result = await aiTranslate(input, sourceLang, targetLang, selectedProvider);
       setOutput(result);
     } catch (err) {
       setError(String(err));
-      showToast("AI request failed: " + String(err), "error");
+      showToast(`${t("ai.requestFailed")}: ${String(err)}`, "error");
     }
     setLoading(false);
   };
@@ -60,12 +110,15 @@ export function AITools() {
     setLoading(true);
     setError(null);
     try {
+      if (!selectedProvider) {
+        throw new Error(t("ai.chooseProvider"));
+      }
       if (!streamMode) {
-        const result = await aiComplete(input);
+        const result = await aiComplete(input, undefined, selectedProvider);
         setOutput(result);
       } else {
         const requestId = crypto.randomUUID();
-        setOutput({ content: "", model: "streaming", provider: "streaming", tokens_used: null });
+        setOutput({ content: "", model: t("ai.streaming"), provider: t("ai.streaming"), tokens_used: null });
         const unsubs: Array<() => void> = [];
         let resolveDone: (() => void) | null = null;
         const donePromise = new Promise<void>((resolve) => {
@@ -91,7 +144,7 @@ export function AITools() {
         unsubs.push(unlistenChunk, unlistenDone);
 
         try {
-          await aiCompleteStream(input, undefined, undefined, undefined, requestId);
+          await aiCompleteStream(input, undefined, selectedProvider, undefined, requestId);
           await Promise.race([
             donePromise,
             new Promise<void>((resolve) => setTimeout(resolve, 30000)),
@@ -102,7 +155,7 @@ export function AITools() {
       }
     } catch (err) {
       setError(String(err));
-      showToast("AI request failed: " + String(err), "error");
+      showToast(`${t("ai.requestFailed")}: ${String(err)}`, "error");
     }
     setLoading(false);
   };
@@ -120,7 +173,7 @@ export function AITools() {
       const text = await readSystemClipboard();
       setInput(text);
     } catch (err) {
-      showToast("Failed to read clipboard: " + String(err), "error");
+      showToast(`${t("common.failedReadClipboard")}: ${String(err)}`, "error");
     }
   };
 
@@ -128,9 +181,9 @@ export function AITools() {
     if (!output) return;
     try {
       await writeSystemClipboard(output.content);
-      showToast("Result copied to clipboard", "success");
+      showToast(t("common.resultCopied"), "success");
     } catch (err) {
-      showToast("Failed to copy: " + String(err), "error");
+      showToast(`${t("common.failedCopy")}: ${String(err)}`, "error");
     }
   };
 
@@ -164,10 +217,26 @@ export function AITools() {
       </div>
 
       {/* Translation language pickers */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center" }}>
+        <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>{t("ai.provider")}</label>
+        <select
+          className="select"
+          value={selectedProvider}
+          onChange={(e) => setSelectedProvider(e.target.value)}
+          style={{ minWidth: 220 }}
+        >
+          {validProviders.length === 0 && <option value="">{t("ai.noValidProviders")}</option>}
+          {validProviders.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
       {activeTab === "translate" && (
         <div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center" }}>
           <select className="select" value={sourceLang} onChange={(e) => setSourceLang(e.target.value)}>
-            {LANGUAGES.map((l) => <option key={l} value={l}>{l === "auto" ? "Auto-detect" : l}</option>)}
+            {LANGUAGES.map((l) => <option key={l} value={l}>{l === "auto" ? t("common.autoDetect") : l}</option>)}
           </select>
           <span style={{ color: "var(--text-secondary)" }}>{"\u{2192}"}</span>
           <select className="select" value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>
@@ -177,7 +246,7 @@ export function AITools() {
       )}
       {activeTab === "freeform" && (
         <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 12, color: "var(--text-secondary)", marginRight: 8 }}>Stream mode (beta)</label>
+          <label style={{ fontSize: 12, color: "var(--text-secondary)", marginRight: 8 }}>{t("ai.streamModeBeta")}</label>
           <button className={`toggle ${streamMode ? "active" : ""}`} onClick={() => setStreamMode(!streamMode)} />
         </div>
       )}
@@ -204,7 +273,7 @@ export function AITools() {
           className="btn btn-sm"
           style={{ position: "absolute", top: "8px", right: "8px" }}
           onClick={pasteFromClipboard}
-          title="Paste from clipboard"
+          title={t("common.pasteFromClipboard")}
         >
           {"\u{1F4CB}"} {t("conv.paste")}
         </button>
@@ -212,7 +281,7 @@ export function AITools() {
 
       {/* Actions */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-        <button className="btn btn-primary" onClick={handleSubmit} disabled={loading || !input.trim()}>
+        <button className="btn btn-primary" onClick={handleSubmit} disabled={loading || !input.trim() || !selectedProvider}>
           {loading ? (
             <><div className="spinner" style={{ width: "14px", height: "14px" }} /> {t("ai.processing")}</>
           ) : (
@@ -238,7 +307,7 @@ export function AITools() {
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-              via {output.provider} / {output.model}
+              {t("common.via")} {output.provider} / {output.model}
               {output.tokens_used && ` (${output.tokens_used} tokens)`}
             </span>
             <button className="btn btn-sm" onClick={copyResult}>

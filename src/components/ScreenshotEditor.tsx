@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { saveScreenshotRegion, cancelScreenshot, copyScreenshotToClipboard } from "../lib/tauri";
+import { useLocale } from "../lib/i18n";
 
 type Tool = "select" | "arrow" | "rect" | "circle" | "draw" | "highlight" | "blur" | "text";
 
@@ -39,6 +40,7 @@ function mapSelectionToImageRegion(
 }
 
 export function ScreenshotEditor() {
+  const [, t] = useLocale();
   // Parse image path from URL
   const params = new URLSearchParams(window.location.search);
   const imagePath = decodeURIComponent(params.get("image") || "");
@@ -311,12 +313,12 @@ export function ScreenshotEditor() {
           justifyContent: "center",
           gap: "12px",
         }}>
-          <h2 style={{ margin: 0, fontSize: "20px" }}>Screenshot failed to load</h2>
+          <h2 style={{ margin: 0, fontSize: "20px" }}>{t("ss.loadFailedTitle")}</h2>
           <p style={{ margin: 0, color: "#ccc", maxWidth: "520px", textAlign: "center" }}>
-            {imageError || "Invalid screenshot path. Please retry and ensure Screen Recording permission is granted on macOS."}
+            {imageError || t("ss.invalidPathDesc")}
           </p>
           <button className="btn" onClick={() => { void cancelScreenshot(imagePath || undefined); }}>
-            Close
+            {t("ss.close")}
           </button>
         </div>
       )}
@@ -332,7 +334,7 @@ export function ScreenshotEditor() {
         }}
         onError={() => {
           setImageReady(false);
-          setImageError("Could not open captured image. Check screenshot permissions and retry.");
+          setImageError(t("ss.openImageFailed"));
         }}
         style={{
           position: "absolute",
@@ -475,7 +477,7 @@ export function ScreenshotEditor() {
               }
             }
             if (activeTool === "text") {
-              const text = prompt("Enter text:");
+              const text = prompt(t("ss.enterText"));
               if (text && canvasRef.current) {
                 const ctx = canvasRef.current.getContext("2d");
                 if (ctx) {
@@ -583,13 +585,13 @@ export function ScreenshotEditor() {
         }}>
           {/* Tools */}
           {([
-            { tool: "arrow" as Tool, label: "Arrow", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg> },
-            { tool: "rect" as Tool, label: "Rect", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> },
-            { tool: "circle" as Tool, label: "Circle", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/></svg> },
-            { tool: "highlight" as Tool, label: "Highlight", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 22h20L12 2z" fill="currentColor" opacity="0.3"/></svg> },
-            { tool: "blur" as Tool, label: "Blur", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 2"/></svg> },
-            { tool: "draw" as Tool, label: "Draw", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> },
-            { tool: "text" as Tool, label: "Text", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg> },
+            { tool: "arrow" as Tool, label: t("ss.tool.arrow"), icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg> },
+            { tool: "rect" as Tool, label: t("ss.tool.rect"), icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> },
+            { tool: "circle" as Tool, label: t("ss.tool.circle"), icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/></svg> },
+            { tool: "highlight" as Tool, label: t("ss.tool.highlight"), icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 22h20L12 2z" fill="currentColor" opacity="0.3"/></svg> },
+            { tool: "blur" as Tool, label: t("ss.tool.blur"), icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 2"/></svg> },
+            { tool: "draw" as Tool, label: t("ss.tool.draw"), icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> },
+            { tool: "text" as Tool, label: t("ss.tool.text"), icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg> },
           ]).map(({ tool, label, icon }) => (
             <button
               key={tool}
@@ -612,7 +614,7 @@ export function ScreenshotEditor() {
 
           {/* Undo button */}
           <button
-            title="Undo (Ctrl+Z)"
+            title={t("ss.undo")}
             onClick={(e) => { e.stopPropagation(); handleUndo(); }}
             disabled={undoStack.length === 0}
             style={{
@@ -650,13 +652,13 @@ export function ScreenshotEditor() {
 
           {/* Actions */}
           <button onClick={(e) => { e.stopPropagation(); handleCopy(); }} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: "#7EACB5", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-            Copy
+            {t("common.copy")}
           </button>
           <button onClick={(e) => { e.stopPropagation(); handleSave(); }} disabled={saving} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: "#BF4646", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-            {saving ? "..." : "Save"}
+            {saving ? "..." : t("common.save")}
           </button>
           <button onClick={(e) => { e.stopPropagation(); cancelScreenshot(imagePath); }} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: "rgba(255,255,255,0.1)", color: "#aaa", fontSize: 12, cursor: "pointer" }}>
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       )}
@@ -677,7 +679,7 @@ export function ScreenshotEditor() {
           pointerEvents: "none",
           whiteSpace: "nowrap",
         }}>
-          Click and drag to select a region -- Press Esc to cancel
+          {t("ss.instructions")}
         </div>
       )}
     </div>
