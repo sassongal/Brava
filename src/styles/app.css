@@ -10,6 +10,16 @@
   overflow: hidden;
 }
 
+/* Page transition */
+.content > * {
+  animation: pageIn 0.2s ease;
+}
+
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Navigation Tabs — Warm cream top bar */
 .nav-tabs {
   display: flex;
@@ -128,6 +138,20 @@
 .card:hover {
   border-color: var(--brava-beige-dark);
   box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+/* Press feedback */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-icon:active {
+  transform: scale(0.9);
+}
+
+.toggle:active {
+  transform: scale(0.95);
 }
 
 /* Buttons — Crimson primary, warm secondary */
@@ -326,6 +350,24 @@ textarea.input {
 @keyframes slideUp {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
+}
+
+/* Nav tab indicator */
+.nav-tab {
+  position: relative;
+}
+
+.nav-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 2px;
+  background: var(--text-inverse);
+  border-radius: 1px;
+  opacity: 0.5;
 }
 
 /* Empty state */
