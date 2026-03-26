@@ -6,3 +6,4 @@ pub mod settings;
 pub mod hotkeys;
 pub mod screenshot;
 pub mod transcription;
+pub mod prompts;

@@ -7,10 +7,15 @@ import {
   aiTranslate,
   checkApiKeyHealth,
   getAiProviders,
+  getSavedPrompts,
+  savePromptToLibrary,
+  deleteSavedPrompt,
+  useSavedPrompt,
   readSystemClipboard,
   writeSystemClipboard,
   type AIProviderInfo,
   type AIResponse,
+  type SavedPrompt,
 } from "../lib/tauri";
 import { showToast } from "./Toast";
 import { useLocale } from "../lib/i18n";
@@ -29,9 +34,20 @@ export function AITools() {
   const [providerHealth, setProviderHealth] = useState<Record<string, string>>({});
   const [selectedProvider, setSelectedProvider] = useState<string>("");
 
+  // Prompt library
+  const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>([]);
+  const [showPromptLib, setShowPromptLib] = useState(false);
+  const [saveTitle, setSaveTitle] = useState("");
+
   // Translation
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("English");
+
+  useEffect(() => {
+    getSavedPrompts().then(setSavedPrompts).catch(console.error);
+  }, []);
+
+  const refreshPrompts = () => getSavedPrompts().then(setSavedPrompts).catch(console.error);
 
   useEffect(() => {
     void getAiProviders()
@@ -293,7 +309,38 @@ export function AITools() {
         <button className="btn" onClick={() => { setInput(""); setOutput(null); setError(null); }}>
           {t("conv.clear")}
         </button>
+        <button className="btn btn-sm" onClick={() => setShowPromptLib(!showPromptLib)} style={{ marginLeft: "auto" }}>
+          {showPromptLib ? t("ai.hidePrompts") : t("ai.savedPrompts")} ({savedPrompts.length})
+        </button>
       </div>
+
+      {/* Prompt Library */}
+      {showPromptLib && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{t("ai.savedPrompts")}</h3>
+          {savedPrompts.length === 0 ? (
+            <p style={{ fontSize: 13, color: "var(--text-tertiary)" }}>{t("ai.noSavedPrompts")}</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {savedPrompts.map((p) => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", background: "var(--bg-primary)", borderRadius: "var(--radius-sm)", fontSize: 13 }}>
+                  <span style={{ flex: 1, cursor: "pointer" }} onClick={async () => {
+                    setInput(p.prompt);
+                    await useSavedPrompt(p.id);
+                    refreshPrompts();
+                    setShowPromptLib(false);
+                  }}>
+                    <strong>{p.title}</strong>
+                    {p.category && <span className="badge" style={{ marginLeft: 6, fontSize: 10 }}>{p.category}</span>}
+                    <span style={{ color: "var(--text-tertiary)", marginLeft: 6 }}>({p.use_count}x)</span>
+                  </span>
+                  <button className="btn-icon" onClick={async () => { await deleteSavedPrompt(p.id); refreshPrompts(); }} style={{ color: "var(--error)" }}>{"\u2715"}</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -324,6 +371,17 @@ export function AITools() {
           }}>
             {output.content}
           </pre>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <input className="input" placeholder={t("ai.promptTitle")} value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} style={{ flex: 1, fontSize: 13 }} />
+            <button className="btn btn-sm" disabled={!saveTitle.trim()} onClick={async () => {
+              await savePromptToLibrary(saveTitle, input);
+              setSaveTitle("");
+              refreshPrompts();
+              showToast(t("ai.promptSaved"), "success");
+            }}>
+              {t("ai.savePrompt")}
+            </button>
+          </div>
         </div>
       )}
     </div>

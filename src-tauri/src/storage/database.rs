@@ -469,6 +469,43 @@ impl Database {
         Ok(())
     }
 
+    // --- Prompt Library ---
+
+    pub fn save_prompt(&self, id: &str, title: &str, prompt: &str, category: Option<&str>) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR REPLACE INTO prompt_library (id, title, prompt, category, use_count, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, COALESCE((SELECT use_count FROM prompt_library WHERE id = ?1), 0), COALESCE((SELECT created_at FROM prompt_library WHERE id = ?1), ?5), ?5)",
+            params![id, title, prompt, category, now],
+        ).map_err(|e| format!("Failed to save prompt: {}", e))?;
+        Ok(())
+    }
+
+    pub fn load_prompts(&self) -> Result<Vec<(String, String, String, Option<String>, u32)>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT id, title, prompt, category, use_count FROM prompt_library ORDER BY use_count DESC, updated_at DESC"
+        ).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?, row.get::<_, u32>(4)?))
+        }).map_err(|e| e.to_string())?;
+        rows.collect::<SqliteResult<Vec<_>>>().map_err(|e| e.to_string())
+    }
+
+    pub fn delete_prompt(&self, id: &str) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM prompt_library WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn increment_prompt_usage(&self, id: &str) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute("UPDATE prompt_library SET use_count = use_count + 1, updated_at = ?2 WHERE id = ?1", params![id, now]).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     pub fn export_backup_data(&self) -> Result<BackupData, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
 

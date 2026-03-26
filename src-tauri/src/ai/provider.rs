@@ -126,3 +126,35 @@ impl AIRequest {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_hebrew() {
+        assert!(detect_hebrew("שלום עולם"));
+        assert!(detect_hebrew("hello שלום"));
+        assert!(!detect_hebrew("hello world"));
+        assert!(!detect_hebrew(""));
+    }
+
+    #[test]
+    fn test_enhance_prompt_english() {
+        let req = AIRequest::enhance_prompt("make a website");
+        assert!(req.system_prompt.unwrap().contains("expert prompt engineer"));
+    }
+
+    #[test]
+    fn test_enhance_prompt_hebrew() {
+        let req = AIRequest::enhance_prompt("בנה לי אתר");
+        assert!(req.system_prompt.unwrap().contains("מהנדס פרומפטים"));
+    }
+
+    #[test]
+    fn test_translate_request() {
+        let req = AIRequest::translate("hello", "English", "Hebrew");
+        assert_eq!(req.prompt, "hello");
+        assert!(req.system_prompt.is_some());
+    }
+}

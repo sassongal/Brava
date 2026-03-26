@@ -356,3 +356,122 @@ impl Default for ClipboardManager {
         Self::new(500)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_item_creation() {
+        let item = ClipboardItem::new("hello world".to_string(), 200);
+        assert_eq!(item.content, "hello world");
+        assert_eq!(item.category, ClipboardCategory::Text);
+        assert!(!item.hash.is_empty());
+    }
+
+    #[test]
+    fn test_url_categorization() {
+        let item = ClipboardItem::new("https://example.com".to_string(), 200);
+        assert_eq!(item.category, ClipboardCategory::Url);
+    }
+
+    #[test]
+    fn test_email_categorization() {
+        let item = ClipboardItem::new("user@example.com".to_string(), 200);
+        assert_eq!(item.category, ClipboardCategory::Email);
+    }
+
+    #[test]
+    fn test_color_categorization() {
+        let item = ClipboardItem::new("#FF5733".to_string(), 200);
+        assert_eq!(item.category, ClipboardCategory::Color);
+    }
+
+    #[test]
+    fn test_code_categorization() {
+        let item = ClipboardItem::new("function hello() { return 42; }".to_string(), 200);
+        assert_eq!(item.category, ClipboardCategory::Code);
+    }
+
+    #[test]
+    fn test_path_categorization() {
+        let item = ClipboardItem::new("/usr/local/bin".to_string(), 200);
+        assert_eq!(item.category, ClipboardCategory::Path);
+    }
+
+    #[test]
+    fn test_manager_add() {
+        let mgr = ClipboardManager::new(10);
+        let item = mgr.add("first".to_string());
+        assert!(item.is_some());
+        assert_eq!(mgr.count(), 1);
+    }
+
+    #[test]
+    fn test_manager_dedup() {
+        let mgr = ClipboardManager::new(10);
+        mgr.add("same".to_string());
+        let dup = mgr.add("same".to_string());
+        assert!(dup.is_none());
+        assert_eq!(mgr.count(), 1);
+    }
+
+    #[test]
+    fn test_manager_max_items() {
+        let mgr = ClipboardManager::new(3);
+        mgr.add("a".to_string());
+        mgr.add("b".to_string());
+        mgr.add("c".to_string());
+        mgr.add("d".to_string());
+        assert!(mgr.count() <= 3);
+    }
+
+    #[test]
+    fn test_manager_delete() {
+        let mgr = ClipboardManager::new(10);
+        let item = mgr.add("delete me".to_string()).unwrap();
+        assert!(mgr.delete(&item.id));
+        assert_eq!(mgr.count(), 0);
+    }
+
+    #[test]
+    fn test_manager_search() {
+        let mgr = ClipboardManager::new(10);
+        mgr.add("hello world".to_string());
+        mgr.add("goodbye world".to_string());
+        mgr.add("something else".to_string());
+        let results = mgr.get_items(Some("world"), None, 10, 0);
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_manager_clear() {
+        let mgr = ClipboardManager::new(10);
+        mgr.add("a".to_string());
+        mgr.add("b".to_string());
+        mgr.clear();
+        assert_eq!(mgr.count(), 0);
+    }
+
+    #[test]
+    fn test_content_size_limit() {
+        let mgr = ClipboardManager::new(10);
+        let huge = "x".repeat(2_000_000);
+        assert!(mgr.add(huge).is_none());
+    }
+
+    #[test]
+    fn test_skip_mechanism() {
+        let mgr = ClipboardManager::new(10);
+        mgr.set_skip("secret");
+        assert!(mgr.should_skip("secret"));
+        assert!(!mgr.should_skip("secret")); // cleared after first check
+    }
+
+    #[test]
+    fn test_image_item() {
+        let item = ClipboardItem::new_image("/path/to/img.png".to_string());
+        assert_eq!(item.category, ClipboardCategory::Image);
+        assert_eq!(item.image_path, Some("/path/to/img.png".to_string()));
+    }
+}

@@ -192,3 +192,47 @@ pub struct LayoutInfo {
     pub code: String,
     pub name: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_hebrew() {
+        let engine = LayoutEngine::new();
+        let det = engine.detect_layout("שלום עולם");
+        assert_eq!(det.detected_code, "he");
+        assert!(det.confidence > 0.0);
+    }
+
+    #[test]
+    fn test_detect_english() {
+        let engine = LayoutEngine::new();
+        let det = engine.detect_layout("hello world");
+        assert_eq!(det.detected_code, "en");
+        assert!(det.confidence > 0.0);
+    }
+
+    #[test]
+    fn test_available_layouts() {
+        let engine = LayoutEngine::new();
+        let layouts = engine.available_layouts();
+        assert!(layouts.len() >= 4);
+        assert!(layouts.iter().any(|l| l.code == "en"));
+        assert!(layouts.iter().any(|l| l.code == "he"));
+    }
+
+    #[test]
+    fn test_convert() {
+        let engine = LayoutEngine::new();
+        let result = engine.convert("שדג", Some("he"), Some("en"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_auto_convert() {
+        let engine = LayoutEngine::new();
+        let result = engine.auto_convert("שדגכ");
+        assert!(result.is_ok());
+    }
+}

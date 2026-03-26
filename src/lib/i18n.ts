@@ -112,6 +112,12 @@ const translations = {
   "ai.requestFailed": { en: "AI request failed", he: "בקשת AI נכשלה" },
   "ai.streaming": { en: "streaming", he: "סטרימינג" },
   "ai.streamModeBeta": { en: "Stream mode (beta)", he: "מצב סטרימינג (בטא)" },
+  "ai.savedPrompts": { en: "Saved Prompts", he: "פרומפטים שמורים" },
+  "ai.hidePrompts": { en: "Hide Prompts", he: "הסתר פרומפטים" },
+  "ai.savePrompt": { en: "Save Prompt", he: "שמור פרומפט" },
+  "ai.promptTitle": { en: "Prompt title...", he: "כותרת הפרומפט..." },
+  "ai.noSavedPrompts": { en: "No saved prompts yet. Use AI tools, then save prompts you want to reuse.", he: "אין פרומפטים שמורים עדיין. השתמש בכלי AI, ואז שמור פרומפטים שתרצה לשחזר." },
+  "ai.promptSaved": { en: "Prompt saved", he: "הפרומפט נשמר" },
 
   // Settings
   "set.title": { en: "Settings", he: "הגדרות" },

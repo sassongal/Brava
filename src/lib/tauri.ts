@@ -112,6 +112,27 @@ export const getAiProviders = () =>
 export const checkApiKeyHealth = (provider: string, key?: string) =>
   invoke<ApiKeyHealth>("check_api_key_health", { provider, key });
 
+// Prompt library commands
+export interface SavedPrompt {
+  id: string;
+  title: string;
+  prompt: string;
+  category: string | null;
+  use_count: number;
+}
+
+export const getSavedPrompts = () =>
+  invoke<SavedPrompt[]>("get_saved_prompts");
+
+export const savePromptToLibrary = (title: string, prompt: string, category?: string) =>
+  invoke<string>("save_prompt", { title, prompt, category });
+
+export const deleteSavedPrompt = (id: string) =>
+  invoke<void>("delete_saved_prompt", { id });
+
+export const useSavedPrompt = (id: string) =>
+  invoke<void>("use_saved_prompt", { id });
+
 // Settings commands
 export const getSettings = () =>
   invoke<AppSettings>("get_settings");

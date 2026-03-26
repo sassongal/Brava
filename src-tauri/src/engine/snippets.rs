@@ -231,3 +231,74 @@ impl Default for SnippetEngine {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_snippet_creation() {
+        let s = Snippet::new("/sig".to_string(), "Best regards".to_string(), Some("Sig".to_string()), None, false);
+        assert_eq!(s.trigger, "/sig");
+        assert_eq!(s.content, "Best regards");
+        assert!(s.enabled);
+    }
+
+    #[test]
+    fn test_add_and_match() {
+        let mut engine = SnippetEngine::new();
+        engine.add(Snippet::new("/hello".to_string(), "Hello World!".to_string(), None, None, false));
+        let matched = engine.match_buffer("/hello");
+        assert!(matched.is_some());
+        assert_eq!(matched.unwrap().content, "Hello World!");
+    }
+
+    #[test]
+    fn test_no_match() {
+        let mut engine = SnippetEngine::new();
+        engine.add(Snippet::new("/hello".to_string(), "Hello".to_string(), None, None, false));
+        assert!(engine.match_buffer("/goodbye").is_none());
+        assert!(engine.match_buffer("/hell").is_none());
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut engine = SnippetEngine::new();
+        let s = Snippet::new("/test".to_string(), "test".to_string(), None, None, false);
+        let id = s.id.clone();
+        engine.add(s);
+        assert!(engine.remove(&id).is_some());
+        assert!(engine.match_buffer("/test").is_none());
+    }
+
+    #[test]
+    fn test_get_all() {
+        let mut engine = SnippetEngine::new();
+        engine.add(Snippet::new("/a".to_string(), "aaa".to_string(), None, None, false));
+        engine.add(Snippet::new("/b".to_string(), "bbb".to_string(), None, None, false));
+        assert_eq!(engine.get_all().len(), 2);
+    }
+
+    #[test]
+    fn test_load() {
+        let mut engine = SnippetEngine::new();
+        engine.load(vec![
+            Snippet::new("/x".to_string(), "xxx".to_string(), None, None, false),
+            Snippet::new("/y".to_string(), "yyy".to_string(), None, None, false),
+        ]);
+        assert_eq!(engine.get_all().len(), 2);
+        assert!(engine.match_buffer("/x").is_some());
+    }
+
+    #[test]
+    fn test_variable_expansion() {
+        let expanded = SnippetEngine::expand_variables("Pasted: {clipboard}", "hello");
+        assert_eq!(expanded, "Pasted: hello");
+    }
+
+    #[test]
+    fn test_date_variable() {
+        let expanded = SnippetEngine::expand_variables("Today is {date}", "");
+        assert!(!expanded.contains("{date}"));
+    }
+}

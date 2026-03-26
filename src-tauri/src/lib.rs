@@ -294,6 +294,11 @@ pub fn run() {
             commands::transcription::enqueue_transcription,
             commands::transcription::enqueue_transcription_blob,
             commands::transcription::list_transcriptions,
+            // Prompt library commands
+            commands::prompts::get_saved_prompts,
+            commands::prompts::save_prompt,
+            commands::prompts::delete_saved_prompt,
+            commands::prompts::use_saved_prompt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Brava");
