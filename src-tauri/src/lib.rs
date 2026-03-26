@@ -187,6 +187,7 @@ pub fn run() {
             commands::settings::get_caffeine_status,
             commands::settings::toggle_keyboard_lock,
             commands::settings::get_keyboard_lock_status,
+            commands::settings::check_permissions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Brava");

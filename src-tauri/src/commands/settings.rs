@@ -102,6 +102,32 @@ pub fn get_keyboard_lock_status(state: State<'_, KeyboardLockState>) -> bool {
     *state.locked.lock().unwrap()
 }
 
+// --- Permission Status ---
+
+#[tauri::command]
+pub fn check_permissions() -> serde_json::Value {
+    let accessibility = check_accessibility_permission();
+
+    serde_json::json!({
+        "accessibility": accessibility,
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn check_accessibility_permission() -> bool {
+    // Use macOS ApplicationServices API to check Accessibility trust
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
+    }
+    unsafe { AXIsProcessTrusted() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn check_accessibility_permission() -> bool {
+    // On non-macOS, assume granted (no equivalent permission model)
+    true
+}
+
 // --- Export / Import ---
 
 #[tauri::command]

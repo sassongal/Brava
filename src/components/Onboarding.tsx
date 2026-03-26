@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocale, setLocale } from "../lib/i18n";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { checkPermissions, type PermissionStatus } from "../lib/tauri";
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -9,239 +10,211 @@ interface OnboardingProps {
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [locale, t] = useLocale();
   const [step, setStep] = useState(0);
+  const [permissions, setPermissions] = useState<PermissionStatus | null>(null);
   const isHebrew = locale === "he";
 
-  // Step 0: Language chooser — no translation needed, shown in both languages
+  const refreshPermissions = useCallback(async () => {
+    try {
+      const status = await checkPermissions();
+      setPermissions(status);
+    } catch {
+      setPermissions({ accessibility: false });
+    }
+  }, []);
+
+  // Poll permissions when on the permissions step
+  useEffect(() => {
+    if (step !== 1) return;
+    refreshPermissions();
+    const interval = setInterval(refreshPermissions, 2000);
+    return () => clearInterval(interval);
+  }, [step, refreshPermissions]);
+
+  // Step 0: Language chooser
   if (step === 0) {
     return (
       <div style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100vh",
-        padding: "32px",
-        textAlign: "center",
-        background: "var(--bg-primary)",
-        color: "var(--text-primary)",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", height: "100vh", padding: "32px",
+        textAlign: "center", background: "var(--bg-primary)", color: "var(--text-primary)",
       }}>
-        <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M2 12h20" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-          </svg>
-        </div>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M2 12h20" />
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+        </svg>
 
-        <h1 style={{ fontSize: "28px", fontWeight: 700, marginBottom: "8px" }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, fontFamily: "var(--font-display)" }}>
           Choose Your Language
         </h1>
-        <p style={{ fontSize: "16px", color: "var(--text-secondary)", marginBottom: "4px" }}>
+        <p style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 4 }}>
           Select your preferred language
         </p>
-        <p style={{
-          fontSize: "16px",
-          color: "var(--text-secondary)",
-          marginBottom: "32px",
-          fontFamily: "var(--font-hebrew), var(--font-sans)",
-          direction: "rtl",
-        }}>
+        <p style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 32, fontFamily: "var(--font-hebrew)", direction: "rtl" }}>
           בחר את השפה המועדפת עליך
         </p>
 
-        <div style={{ display: "flex", gap: "16px" }}>
-          <button
-            className="btn"
-            onClick={() => { setLocale("en"); setStep(1); }}
-            style={{
-              padding: "20px 40px",
-              fontSize: "18px",
-              fontWeight: 600,
-              border: "2px solid var(--border)",
-              borderRadius: "var(--radius-lg, 12px)",
-              cursor: "pointer",
-              minWidth: "160px",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "var(--accent)";
-              e.currentTarget.style.background = "var(--accent-light)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--border)";
-              e.currentTarget.style.background = "";
-            }}
-          >
-            English
-          </button>
-          <button
-            className="btn"
-            onClick={() => { setLocale("he"); setStep(1); }}
-            style={{
-              padding: "20px 40px",
-              fontSize: "18px",
-              fontWeight: 600,
-              border: "2px solid var(--border)",
-              borderRadius: "var(--radius-lg, 12px)",
-              cursor: "pointer",
-              minWidth: "160px",
-              fontFamily: "var(--font-hebrew), var(--font-sans)",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "var(--accent)";
-              e.currentTarget.style.background = "var(--accent-light)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--border)";
-              e.currentTarget.style.background = "";
-            }}
-          >
-            עברית
-          </button>
+        <div style={{ display: "flex", gap: 16 }}>
+          {[
+            { code: "en" as const, label: "English", font: "var(--font-sans)" },
+            { code: "he" as const, label: "עברית", font: "var(--font-hebrew)" },
+          ].map((lang) => (
+            <button
+              key={lang.code}
+              className="btn"
+              onClick={() => { setLocale(lang.code); setStep(1); }}
+              style={{
+                padding: "20px 40px", fontSize: 18, fontWeight: 600,
+                border: "2px solid var(--border)", borderRadius: "var(--radius-lg)",
+                minWidth: 160, fontFamily: lang.font,
+              }}
+            >
+              {lang.label}
+            </button>
+          ))}
         </div>
       </div>
     );
   }
 
-  // Steps 1-6 (after language selection)
+  // Step definitions
   const STEPS = [
-    {
-      icon: "\uD83D\uDD12",
-      title: t("onb.permissions"),
-      description: t("onb.permissionsDesc"),
-      detail: t("onb.permissionsHint"),
-      action: "permissions",
-    },
-    {
-      icon: "\u2328\uFE0F",
-      title: t("onb.layoutTitle"),
-      description: t("onb.layoutDesc"),
-      detail: t("onb.layoutDetail"),
-    },
-    {
-      icon: "\uD83D\uDCCB",
-      title: t("onb.clipTitle"),
-      description: t("onb.clipDesc"),
-      detail: t("onb.clipDetail"),
-    },
-    {
-      icon: "\u26A1",
-      title: t("onb.snippetTitle"),
-      description: t("onb.snippetDesc"),
-      detail: t("onb.snippetDetail"),
-    },
-    {
-      icon: "\uD83E\uDD16",
-      title: t("onb.aiTitle"),
-      description: t("onb.aiDesc"),
-      detail: t("onb.aiDetail"),
-    },
-    {
-      icon: "\uD83C\uDF89",
-      title: t("onb.readyTitle"),
-      description: t("onb.readyDesc"),
-      detail: t("onb.readyDetail"),
-    },
+    { id: "permissions", icon: "shield", title: t("onb.permissions"), description: t("onb.permissionsDesc"), detail: t("onb.permissionsHint") },
+    { id: "layout", icon: "arrows", title: t("onb.layoutTitle"), description: t("onb.layoutDesc"), detail: t("onb.layoutDetail") },
+    { id: "clipboard", icon: "clipboard", title: t("onb.clipTitle"), description: t("onb.clipDesc"), detail: t("onb.clipDetail") },
+    { id: "snippets", icon: "code", title: t("onb.snippetTitle"), description: t("onb.snippetDesc"), detail: t("onb.snippetDetail") },
+    { id: "ai", icon: "sparkle", title: t("onb.aiTitle"), description: t("onb.aiDesc"), detail: t("onb.aiDetail") },
+    { id: "ready", icon: "check", title: t("onb.readyTitle"), description: t("onb.readyDesc"), detail: t("onb.readyDetail") },
   ];
 
-  const currentIdx = step - 1; // offset since step 0 is language chooser
+  const stepIcons: Record<string, React.ReactNode> = {
+    shield: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4" stroke="var(--success)" strokeWidth="2"/></svg>,
+    arrows: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><path d="M2 7h20M22 7l-4-4M22 17H2M2 17l4 4"/></svg>,
+    clipboard: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V1.5A.5.5 0 019.5 1h5a.5.5 0 01.5.5V3"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg>,
+    code: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><path d="M7 4l10 8-10 8"/><line x1="3" y1="22" x2="21" y2="22"/></svg>,
+    sparkle: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="4" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="20"/><line x1="4" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="20" y2="12"/></svg>,
+    check: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" strokeWidth="2"/></svg>,
+  };
+
+  const currentIdx = step - 1;
   const current = STEPS[currentIdx];
   const isLast = currentIdx === STEPS.length - 1;
   const dir = isHebrew ? "rtl" : "ltr";
 
-  const handleOpenPermissions = () => {
-    openUrl("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
-  };
+  const permissionItems = [
+    {
+      key: "accessibility" as const,
+      label: t("onb.perm.accessibility"),
+      desc: t("onb.perm.accessibilityDesc"),
+      url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="4" r="2"/><path d="M12 6v6m-4-2l4 2 4-2m-8 4l4 6 4-6"/></svg>,
+    },
+  ];
 
   return (
     <div
       dir={dir}
       style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100vh",
-        padding: "32px",
-        textAlign: "center",
-        background: "var(--bg-primary)",
-        color: "var(--text-primary)",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", height: "100vh", padding: "32px",
+        textAlign: "center", background: "var(--bg-primary)", color: "var(--text-primary)",
         fontFamily: isHebrew ? "var(--font-hebrew), var(--font-sans)" : "var(--font-sans)",
       }}
     >
-      <div style={{ fontSize: "64px", marginBottom: "16px" }}>{current.icon}</div>
+      <div style={{ marginBottom: 16 }}>
+        {stepIcons[current.icon] || <div style={{ fontSize: 56 }}>{current.icon}</div>}
+      </div>
 
-      <h1 style={{ fontSize: "28px", fontWeight: 700, marginBottom: "12px" }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 12, fontFamily: isHebrew ? "var(--font-hebrew)" : "var(--font-display)" }}>
         {current.title}
       </h1>
 
-      <p style={{
-        fontSize: "16px",
-        color: "var(--text-secondary)",
-        maxWidth: "500px",
-        lineHeight: "1.6",
-        marginBottom: "8px",
-      }}>
+      <p style={{ fontSize: 16, color: "var(--text-secondary)", maxWidth: 500, lineHeight: 1.6, marginBottom: 8 }}>
         {current.description}
       </p>
 
-      <p style={{
-        fontSize: "14px",
-        color: "var(--text-tertiary)",
-        maxWidth: "450px",
-        marginBottom: current.action === "permissions" ? "16px" : "32px",
-      }}>
+      <p style={{ fontSize: 14, color: "var(--text-tertiary)", maxWidth: 450, marginBottom: 24 }}>
         {current.detail}
       </p>
 
-      {/* Permissions action button */}
-      {current.action === "permissions" && (
-        <button
-          className="btn"
-          onClick={handleOpenPermissions}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "10px 24px",
-            fontSize: "15px",
-            fontWeight: 600,
-            border: "2px solid var(--accent)",
-            color: "var(--accent)",
-            borderRadius: "var(--radius-lg, 12px)",
-            cursor: "pointer",
-            marginBottom: "32px",
-            transition: "all 0.2s ease",
-            fontFamily: isHebrew ? "var(--font-hebrew), var(--font-sans)" : "var(--font-sans)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--accent)";
-            e.currentTarget.style.color = "white";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "";
-            e.currentTarget.style.color = "var(--accent)";
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-            <polyline points="15 3 21 3 21 9" />
-            <line x1="10" y1="14" x2="21" y2="3" />
-          </svg>
-          {t("onb.openPermissions")}
-        </button>
+      {/* Permission cards — only on permissions step */}
+      {current.id === "permissions" && (
+        <div style={{ width: "100%", maxWidth: 420, marginBottom: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+          {permissionItems.map((perm) => {
+            const granted = permissions?.[perm.key] ?? false;
+            return (
+              <div
+                key={perm.key}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "14px 16px", background: "var(--bg-secondary)",
+                  border: `1.5px solid ${granted ? "var(--success)" : "var(--accent)"}`,
+                  borderRadius: "var(--radius-lg)", textAlign: isHebrew ? "right" : "left",
+                }}
+              >
+                <div style={{ color: granted ? "var(--success)" : "var(--accent)", flexShrink: 0 }}>
+                  {perm.icon}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>
+                    {perm.label}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", lineHeight: 1.4 }}>
+                    {perm.desc}
+                  </div>
+                </div>
+                <div style={{ flexShrink: 0 }}>
+                  {granted ? (
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      padding: "4px 10px", borderRadius: "var(--radius-full)",
+                      background: "rgba(61, 153, 112, 0.1)", color: "var(--success)",
+                      fontSize: 12, fontWeight: 600,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12l5 5L20 7"/></svg>
+                      {t("onb.perm.granted")}
+                    </span>
+                  ) : (
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => openUrl(perm.url)}
+                      style={{
+                        background: "var(--accent)", color: "white",
+                        border: "none", fontWeight: 600, fontSize: 12,
+                        padding: "5px 12px", borderRadius: "var(--radius-md)",
+                      }}
+                    >
+                      {t("onb.perm.grant")}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Refresh button */}
+          <button
+            className="btn btn-sm"
+            onClick={refreshPermissions}
+            style={{ alignSelf: "center", marginTop: 4, color: "var(--text-tertiary)", fontSize: 12 }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 4 }}>
+              <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/>
+              <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/>
+            </svg>
+            {t("onb.perm.refresh")}
+          </button>
+        </div>
       )}
 
       {/* Step indicators */}
-      <div style={{ display: "flex", gap: "6px", marginBottom: "24px" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
         {STEPS.map((_, i) => (
           <div
             key={i}
             style={{
-              width: i === currentIdx ? "24px" : "8px",
-              height: "8px",
-              borderRadius: "var(--radius-full, 9999px)",
+              width: i === currentIdx ? 24 : 8, height: 8,
+              borderRadius: "var(--radius-full)",
               background: i === currentIdx ? "var(--accent)" : "var(--border)",
               transition: "all 0.3s ease",
             }}
@@ -250,7 +223,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       {/* Navigation */}
-      <div style={{ display: "flex", gap: "12px" }}>
+      <div style={{ display: "flex", gap: 12 }}>
         <button className="btn" onClick={() => setStep(step - 1)}>
           {step === 1 ? t("set.language") : t("onb.back")}
         </button>

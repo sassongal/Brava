@@ -92,6 +92,14 @@ export const getAppVersion = () =>
 export const getAppInfo = () =>
   invoke<AppInfo>("get_app_info");
 
+// Permission checking
+export const checkPermissions = () =>
+  invoke<PermissionStatus>("check_permissions");
+
+export interface PermissionStatus {
+  accessibility: boolean;
+}
+
 // Settings persistence commands
 export const saveSettingsToDb = () =>
   invoke<void>("save_settings_to_db");
