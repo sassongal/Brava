@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { saveScreenshotRegion, cancelScreenshot, copyScreenshotToClipboard } from "../lib/tauri";
 
-type Tool = "select" | "arrow" | "rect" | "draw" | "text";
+type Tool = "select" | "arrow" | "rect" | "circle" | "draw" | "highlight" | "blur" | "text";
 
 const COLORS = ["#BF4646", "#3D9970", "#3B82F6", "#F59E0B", "#8B5CF6", "#FFFFFF"];
 
@@ -23,6 +23,7 @@ export function ScreenshotEditor() {
   const [drawing, setDrawing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [saving, setSaving] = useState(false);
+  const [undoStack, setUndoStack] = useState<ImageData[]>([]);
 
   // Track mouse for crosshair
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -109,24 +110,50 @@ export function ScreenshotEditor() {
     if (!drawing || !canvasRef.current || !selection) return;
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
-    if (activeTool === "draw") {
+    if (activeTool === "draw" || activeTool === "highlight") {
       const rx = e.clientX - selection.x;
       const ry = e.clientY - selection.y;
       ctx.lineTo(rx, ry);
       ctx.stroke();
+      if (activeTool === "highlight") {
+        ctx.globalAlpha = 1.0;
+      }
     }
   }, [drawing, selection, activeTool]);
 
-  // Escape to cancel
+  // Undo handler
+  const handleUndo = useCallback(() => {
+    if (undoStack.length > 0 && canvasRef.current) {
+      const ctx = canvasRef.current.getContext("2d");
+      if (undoStack.length === 1) {
+        // Clear canvas (back to no annotations)
+        ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        setUndoStack([]);
+      } else {
+        const prev = undoStack[undoStack.length - 2];
+        if (ctx && prev) {
+          ctx.putImageData(prev, 0, 0);
+        }
+        setUndoStack(s => s.slice(0, -1));
+      }
+    }
+  }, [undoStack]);
+
+  // Escape to cancel, Ctrl/Cmd+Z to undo
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
       if (e.key === "Escape") {
         cancelScreenshot(imagePath);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [imagePath]);
+  }, [imagePath, handleUndo]);
 
   // Save handler
   const handleSave = async () => {
@@ -228,6 +255,41 @@ export function ScreenshotEditor() {
         </>
       )}
 
+      {/* Magnifier */}
+      {phase === "selecting" && (
+        <div style={{
+          position: "absolute",
+          left: mousePos.x + 20,
+          top: mousePos.y + 20,
+          width: 100,
+          height: 100,
+          border: "2px solid rgba(191,70,70,0.8)",
+          borderRadius: 4,
+          overflow: "hidden",
+          pointerEvents: "none",
+          zIndex: 25,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+        }}>
+          <img
+            src={imageUrl}
+            alt=""
+            style={{
+              position: "absolute",
+              width: `${window.innerWidth * 4}px`,
+              height: `${window.innerHeight * 4}px`,
+              left: -(mousePos.x * 4) + 50,
+              top: -(mousePos.y * 4) + 50,
+              imageRendering: "pixelated",
+              pointerEvents: "none",
+            }}
+            draggable={false}
+          />
+          {/* Crosshair in magnifier */}
+          <div style={{ position: "absolute", left: 49, top: 0, width: 1, height: 100, background: "rgba(191,70,70,0.5)" }} />
+          <div style={{ position: "absolute", top: 49, left: 0, height: 1, width: 100, background: "rgba(191,70,70,0.5)" }} />
+        </div>
+      )}
+
       {/* Selection rectangle */}
       {selection && (
         <div style={{
@@ -289,14 +351,14 @@ export function ScreenshotEditor() {
             width: selection.w,
             height: selection.h,
             zIndex: 15,
-            cursor: activeTool === "draw" ? "crosshair" : activeTool === "text" ? "text" : "crosshair",
+            cursor: activeTool === "text" ? "text" : "crosshair",
           }}
           onMouseMove={handleCanvasMouseMove}
           onMouseDown={(e) => {
             e.stopPropagation();
             setDrawing(true);
             setStartPos({ x: e.clientX, y: e.clientY });
-            if (activeTool === "draw" && canvasRef.current) {
+            if ((activeTool === "draw" || activeTool === "highlight") && canvasRef.current) {
               const ctx = canvasRef.current.getContext("2d");
               if (ctx) {
                 const rx = e.clientX - selection.x;
@@ -304,7 +366,12 @@ export function ScreenshotEditor() {
                 ctx.beginPath();
                 ctx.moveTo(rx, ry);
                 ctx.strokeStyle = activeColor;
-                ctx.lineWidth = 3;
+                if (activeTool === "highlight") {
+                  ctx.lineWidth = 20;
+                  ctx.globalAlpha = 0.3;
+                } else {
+                  ctx.lineWidth = 3;
+                }
                 ctx.lineCap = "round";
               }
             }
@@ -352,6 +419,47 @@ export function ScreenshotEditor() {
                 ctx.strokeStyle = activeColor;
                 ctx.lineWidth = 2;
                 ctx.strokeRect(sx, sy, rx - sx, ry - sy);
+              } else if (activeTool === "circle") {
+                ctx.strokeStyle = activeColor;
+                ctx.lineWidth = 2;
+                const ccx = (sx + rx) / 2;
+                const ccy = (sy + ry) / 2;
+                const radiusX = Math.abs(rx - sx) / 2;
+                const radiusY = Math.abs(ry - sy) / 2;
+                ctx.beginPath();
+                ctx.ellipse(ccx, ccy, radiusX, radiusY, 0, 0, 2 * Math.PI);
+                ctx.stroke();
+              } else if (activeTool === "blur") {
+                const bx = Math.min(sx, rx);
+                const by = Math.min(sy, ry);
+                const bw = Math.abs(rx - sx);
+                const bh = Math.abs(ry - sy);
+                if (bw > 2 && bh > 2) {
+                  // First draw the background region
+                  const bgImg = document.querySelector("#screenshot-bg") as HTMLImageElement;
+                  if (bgImg && selection) {
+                    ctx.drawImage(bgImg, selection.x + bx, selection.y + by, bw, bh, bx, by, bw, bh);
+                  }
+                  // Pixelate
+                  const pixelSize = 8;
+                  const imageData = ctx.getImageData(bx, by, bw, bh);
+                  for (let y = 0; y < bh; y += pixelSize) {
+                    for (let x = 0; x < bw; x += pixelSize) {
+                      const i = (y * bw + x) * 4;
+                      const r = imageData.data[i], g = imageData.data[i+1], b = imageData.data[i+2];
+                      ctx.fillStyle = `rgb(${r},${g},${b})`;
+                      ctx.fillRect(bx + x, by + y, pixelSize, pixelSize);
+                    }
+                  }
+                }
+              }
+
+              // Save undo state
+              if (canvasRef.current) {
+                const ctx2 = canvasRef.current.getContext("2d");
+                if (ctx2) {
+                  setUndoStack(prev => [...prev, ctx2.getImageData(0, 0, canvasRef.current!.width, canvasRef.current!.height)]);
+                }
               }
             }
             setDrawing(false);
@@ -378,6 +486,9 @@ export function ScreenshotEditor() {
           {([
             { tool: "arrow" as Tool, label: "Arrow", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg> },
             { tool: "rect" as Tool, label: "Rect", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> },
+            { tool: "circle" as Tool, label: "Circle", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/></svg> },
+            { tool: "highlight" as Tool, label: "Highlight", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 22h20L12 2z" fill="currentColor" opacity="0.3"/></svg> },
+            { tool: "blur" as Tool, label: "Blur", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 2"/></svg> },
             { tool: "draw" as Tool, label: "Draw", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> },
             { tool: "text" as Tool, label: "Text", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg> },
           ]).map(({ tool, label, icon }) => (
@@ -399,6 +510,21 @@ export function ScreenshotEditor() {
               {icon}
             </button>
           ))}
+
+          {/* Undo button */}
+          <button
+            title="Undo (Ctrl+Z)"
+            onClick={(e) => { e.stopPropagation(); handleUndo(); }}
+            disabled={undoStack.length === 0}
+            style={{
+              padding: "5px 8px", borderRadius: 5, border: "none",
+              background: "transparent", color: undoStack.length > 0 ? "#aaa" : "#555",
+              cursor: undoStack.length > 0 ? "pointer" : "default",
+              display: "flex", alignItems: "center",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 10h10a5 5 0 015 5v0a5 5 0 01-5 5H8"/><path d="M3 10l4-4M3 10l4 4"/></svg>
+          </button>
 
           {/* Separator */}
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.15)", margin: "0 4px" }} />
