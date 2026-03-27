@@ -60,10 +60,30 @@ export function ScreenshotEditor() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [saving, setSaving] = useState(false);
   const [undoStack, setUndoStack] = useState<ImageData[]>([]);
+  const [resizing, setResizing] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, sel: { x: 0, y: 0, w: 0, h: 0 } });
 
   // Track mouse for crosshair
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
+    if (resizing && selection) {
+      const dx = e.clientX - resizeStart.x;
+      const dy = e.clientY - resizeStart.y;
+      const s = resizeStart.sel;
+      let nx = s.x, ny = s.y, nw = s.w, nh = s.h;
+
+      if (resizing.includes("w")) { nx = s.x + dx; nw = s.w - dx; }
+      if (resizing.includes("e")) { nw = s.w + dx; }
+      if (resizing.includes("n")) { ny = s.y + dy; nh = s.h - dy; }
+      if (resizing.includes("s")) { nh = s.h + dy; }
+
+      // Ensure minimum size
+      if (nw < 20) { nw = 20; if (resizing.includes("w")) nx = s.x + s.w - 20; }
+      if (nh < 20) { nh = 20; if (resizing.includes("n")) ny = s.y + s.h - 20; }
+
+      setSelection({ x: nx, y: ny, w: nw, h: nh });
+      return;
+    }
     if (selecting) {
       const x = Math.min(startPos.x, e.clientX);
       const y = Math.min(startPos.y, e.clientY);
@@ -71,7 +91,7 @@ export function ScreenshotEditor() {
       const h = Math.abs(e.clientY - startPos.y);
       setSelection({ x, y, w, h });
     }
-  }, [selecting, startPos]);
+  }, [selecting, startPos, resizing, resizeStart, selection]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (phase === "selecting") {
@@ -94,6 +114,20 @@ export function ScreenshotEditor() {
   }, [phase, selection, activeColor, activeTool]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (resizing) {
+      setResizing(null);
+      // Resize the canvas to match new selection
+      if (canvasRef.current && selection) {
+        const oldCanvas = canvasRef.current;
+        const oldData = oldCanvas.getContext("2d")?.getImageData(0, 0, oldCanvas.width, oldCanvas.height);
+        oldCanvas.width = selection.w;
+        oldCanvas.height = selection.h;
+        if (oldData) {
+          oldCanvas.getContext("2d")?.putImageData(oldData, 0, 0);
+        }
+      }
+      return;
+    }
     if (phase === "selecting" && selecting) {
       setSelecting(false);
       if (selection && selection.w > 10 && selection.h > 10) {
@@ -139,7 +173,7 @@ export function ScreenshotEditor() {
       }
     }
     setStartPos({ x: e.clientX, y: e.clientY });
-  }, [phase, selecting, selection, activeTool, startPos]);
+  }, [phase, selecting, selection, activeTool, startPos, resizing]);
 
   // Canvas mouse move for freehand drawing
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
@@ -420,6 +454,47 @@ export function ScreenshotEditor() {
             draggable={false}
           />
         </div>
+      )}
+
+      {/* Resize handles during annotating phase */}
+      {imageReady && phase === "annotating" && selection && (
+        <>
+          {[
+            { id: "nw", cx: selection.x, cy: selection.y },
+            { id: "ne", cx: selection.x + selection.w, cy: selection.y },
+            { id: "sw", cx: selection.x, cy: selection.y + selection.h },
+            { id: "se", cx: selection.x + selection.w, cy: selection.y + selection.h },
+            { id: "n", cx: selection.x + selection.w / 2, cy: selection.y },
+            { id: "s", cx: selection.x + selection.w / 2, cy: selection.y + selection.h },
+            { id: "w", cx: selection.x, cy: selection.y + selection.h / 2 },
+            { id: "e", cx: selection.x + selection.w, cy: selection.y + selection.h / 2 },
+          ].map(handle => (
+            <div
+              key={handle.id}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                setResizing(handle.id);
+                setResizeStart({
+                  x: e.clientX, y: e.clientY,
+                  sel: { x: selection.x, y: selection.y, w: selection.w, h: selection.h }
+                });
+              }}
+              style={{
+                position: "absolute",
+                left: handle.cx - 4,
+                top: handle.cy - 4,
+                width: 8, height: 8,
+                background: "#BF4646",
+                border: "1px solid white",
+                borderRadius: 1,
+                zIndex: 25,
+                cursor: handle.id === "nw" || handle.id === "se" ? "nwse-resize" :
+                        handle.id === "ne" || handle.id === "sw" ? "nesw-resize" :
+                        handle.id === "n" || handle.id === "s" ? "ns-resize" : "ew-resize",
+              }}
+            />
+          ))}
+        </>
       )}
 
       {/* Dimension label while selecting */}

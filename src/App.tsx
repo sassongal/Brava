@@ -26,6 +26,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>("clipboard");
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [transcriptionBadgeCount, setTranscriptionBadgeCount] = useState(0);
+  const [clipboardBadgeCount, setClipboardBadgeCount] = useState(0);
   const [quickPasteOpen, setQuickPasteOpen] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [wrongLayoutAlert, setWrongLayoutAlert] = useState<WrongLayoutAlert | null>(null);
@@ -137,6 +138,12 @@ function App() {
       }
     }));
 
+    unsubs.push(listen("clipboard-changed", () => {
+      if (activeTab !== "clipboard") {
+        setClipboardBadgeCount(prev => prev + 1);
+      }
+    }));
+
     unsubs.push(listen<WrongLayoutAlert>("wrong-layout-detected", async (event) => {
       if (!appSettings?.realtime_detection) return;
       const now = Date.now();
@@ -155,7 +162,21 @@ function App() {
     if (activeTab === "transcription") {
       setTranscriptionBadgeCount(0);
     }
+    if (activeTab === "clipboard") {
+      setClipboardBadgeCount(0);
+    }
   }, [activeTab]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setQuickPasteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   useEffect(() => {
     if (!wrongLayoutAlert) return;
@@ -257,10 +278,19 @@ function App() {
           >
             <span className="nav-tab-icon">{tabIcons[tab.id]}</span>
             {tab.label}
+            {tab.id === "clipboard" && clipboardBadgeCount > 0 && (
+              <span style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: "var(--accent)", display: "inline-block",
+                marginLeft: 2, verticalAlign: "top",
+              }} />
+            )}
             {tab.id === "transcription" && transcriptionBadgeCount > 0 && (
-              <span className="badge badge-url" style={{ marginLeft: 8, minWidth: 18, textAlign: "center" }}>
-                {transcriptionBadgeCount}
-              </span>
+              <span style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: "var(--accent)", display: "inline-block",
+                marginLeft: 2, verticalAlign: "top",
+              }} />
             )}
           </button>
         ))}
