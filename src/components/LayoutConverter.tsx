@@ -11,6 +11,7 @@ import {
   type DetectionResult,
 } from "../lib/tauri";
 import { useLocale } from "../lib/i18n";
+import { showToast } from "./Toast";
 
 export function LayoutConverter() {
   const [, t] = useLocale();
@@ -46,8 +47,9 @@ export function LayoutConverter() {
         res = await convertText(input, sourceLayout, targetLayout);
       }
       setResult(res);
+      showToast(`${res.source_layout} → ${res.target_layout}`, "success");
     } catch (err) {
-      console.error("Conversion failed:", err);
+      showToast("Conversion failed: " + String(err), "error");
     }
   };
 
@@ -62,7 +64,12 @@ export function LayoutConverter() {
 
   const copyResult = async () => {
     if (!result) return;
-    await writeSystemClipboard(result.converted);
+    try {
+      await writeSystemClipboard(result.converted);
+      showToast(t("clip.copied"), "success");
+    } catch (err) {
+      showToast("Copy failed: " + String(err), "error");
+    }
   };
 
   return (
