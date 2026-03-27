@@ -515,8 +515,6 @@ export function Settings() {
               <button
                 className={`toggle ${settings.global_typing_detection ? "active" : ""}`}
                 onClick={() => updateField("global_typing_detection", !settings.global_typing_detection)}
-                disabled={isMacOS}
-                title={isMacOS ? t("set.globalTypingDetectionMacTitle") : undefined}
               />
             </div>
           </div>

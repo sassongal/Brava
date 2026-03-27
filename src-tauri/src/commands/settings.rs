@@ -22,6 +22,7 @@ pub fn update_settings(
     state: State<'_, SettingsState>,
     ai_state: State<'_, AIState>,
     clipboard_state: State<'_, ClipboardState>,
+    db: State<'_, DatabaseState>,
 ) -> Result<(), String> {
     if let Ok(mut provider) = ai_state.active_provider.lock() {
         *provider = settings.ai_provider.clone();
@@ -32,6 +33,12 @@ pub fn update_settings(
     clipboard_state
         .0
         .set_limits(settings.max_clipboard_items, settings.clipboard_preview_length);
+
+    // If user explicitly enables typing detection, reset crash streak
+    if settings.global_typing_detection {
+        let _ = db.0.set_setting("global_detector_crash_streak", "0");
+    }
+
     let mut current = state.0.lock().map_err(|e| e.to_string())?;
     *current = settings;
     Ok(())

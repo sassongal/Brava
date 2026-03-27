@@ -95,10 +95,10 @@ pub fn run() {
             }
             let _ = std::fs::write(&session_marker, chrono::Utc::now().to_rfc3339());
             let _ = db.set_setting("global_detector_crash_streak", &crash_streak.to_string());
-            if crash_streak >= 2 {
+            if crash_streak >= 3 {
                 settings.global_typing_detection = false;
                 let _ = settings.save(&db);
-                log::warn!("Global typing detection auto-disabled after repeated abnormal exits");
+                log::warn!("Global typing detection auto-disabled after {} consecutive abnormal exits", crash_streak);
             }
 
             // Create clipboard manager and load history from database
