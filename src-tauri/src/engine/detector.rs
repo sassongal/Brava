@@ -25,7 +25,7 @@ impl WrongLayoutDetector {
         WrongLayoutDetector {
             buffer: String::new(),
             max_buffer_size: 50,
-            min_detection_length: 3,
+            min_detection_length: 2,
         }
     }
 
@@ -100,22 +100,19 @@ impl WrongLayoutDetector {
             return None; // No dominant language detected
         }
 
-        // If the dominant language is not English, it might be wrong-layout typing
-        // We return the alert but the UI decides whether to show it based on
-        // the user's active keyboard layout (which we get from the OS)
-        if *dominant_lang != "en" {
-            Some(DetectionAlert {
-                wrong_text: self.buffer.clone(),
-                suggested_text: String::new(), // Filled in by the caller with LayoutEngine
-                source_layout: dominant_lang.to_string(),
-                target_layout: "en".to_string(),
-                confidence: ratio,
-            })
-        } else {
-            // Buffer is English - might be wrong if user intended another language
-            // This case is handled when we know the user's active OS layout
-            None
-        }
+        // Return an alert for any dominant script — the caller (lib.rs) runs the
+        // actual layout-engine conversion and confidence check to decide whether
+        // the text is truly wrong-layout.  Returning Some for English too lets us
+        // catch e.g. "akuo" (Hebrew keyboard positions) that looks like English
+        // but is actually mistyped Hebrew.
+        let target = if *dominant_lang == "en" { "he" } else { "en" };
+        Some(DetectionAlert {
+            wrong_text: self.buffer.clone(),
+            suggested_text: String::new(), // Filled in by the caller with LayoutEngine
+            source_layout: dominant_lang.to_string(),
+            target_layout: target.to_string(),
+            confidence: ratio,
+        })
     }
 
     /// Get the current buffer contents

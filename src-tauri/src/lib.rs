@@ -220,7 +220,33 @@ pub fn run() {
             }
             #[cfg(target_os = "macos")]
             {
-                log::warn!("Global key monitor is temporarily disabled on macOS due to event-tap queue crash risk");
+                if settings.global_typing_detection {
+                    // Check accessibility permission first
+                    let has_access = {
+                        extern "C" {
+                            fn AXIsProcessTrusted() -> u8;
+                        }
+                        unsafe { AXIsProcessTrusted() != 0 }
+                    };
+
+                    if has_access {
+                        let app_handle = app.handle().clone();
+                        std::thread::spawn(move || {
+                            match engine::macos_keys::monitor::start_key_monitor() {
+                                Ok(rx) => {
+                                    macos_key_consumer(app_handle, rx);
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to start macOS key monitor: {}", e);
+                                }
+                            }
+                        });
+                    } else {
+                        log::warn!(
+                            "macOS key monitor requires Accessibility permission (AXIsProcessTrusted)"
+                        );
+                    }
+                }
             }
 
             Ok(())
@@ -618,4 +644,73 @@ fn global_key_monitor(app: tauri::AppHandle) {
     if let Err(err) = listen(callback) {
         log::warn!("Global key monitor failed to start: {:?}", err);
     }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_key_consumer(
+    app: tauri::AppHandle,
+    rx: std::sync::mpsc::Receiver<engine::macos_keys::monitor::KeyEvent>,
+) {
+    use engine::macos_keys::monitor::KeyEvent;
+    use tauri::Emitter;
+
+    let mut detector = WrongLayoutDetector::new();
+    let engine_inst = LayoutEngine::new();
+    let mut last_alert = Instant::now()
+        .checked_sub(Duration::from_secs(30))
+        .unwrap_or_else(Instant::now);
+
+    while let Ok(event) = rx.recv() {
+        // Check if realtime detection is still enabled
+        let realtime_enabled = app
+            .try_state::<SettingsState>()
+            .and_then(|s| s.0.lock().ok().map(|st| st.realtime_detection))
+            .unwrap_or(false);
+        if !realtime_enabled {
+            continue;
+        }
+
+        match event {
+            KeyEvent::Character(ch) => detector.push_char(ch),
+            KeyEvent::Backspace => detector.pop_char(),
+            KeyEvent::WordBoundary => detector.push_char(' '),
+        }
+
+        let snapshot = detector.get_buffer().trim().to_string();
+        if !should_analyze_wrong_layout(&snapshot) {
+            continue;
+        }
+        if last_alert.elapsed() < Duration::from_secs(8) {
+            continue;
+        }
+
+        if detector.analyze().is_some() {
+            if let Ok(converted) = engine_inst.auto_convert(&snapshot) {
+                if converted.converted != snapshot {
+                    let detected = engine_inst.detect_layout(&snapshot);
+                    let converted_detected = engine_inst.detect_layout(&converted.converted);
+                    let strong_signal = (detected.detected_code == "en"
+                        && converted_detected.detected_code != "en"
+                        && converted_detected.confidence >= 0.70)
+                        || (detected.detected_code != "en"
+                            && converted_detected.detected_code == "en"
+                            && converted_detected.confidence >= 0.70);
+                    if strong_signal {
+                        let event_data = WrongLayoutDetectedEvent {
+                            wrong_text: snapshot.clone(),
+                            suggested_text: converted.converted,
+                            source_layout: converted.source_layout,
+                            target_layout: converted.target_layout,
+                            confidence: converted_detected.confidence.max(detected.confidence),
+                        };
+                        let _ = app.emit("wrong-layout-detected", event_data);
+                        last_alert = Instant::now();
+                        detector.clear();
+                    }
+                }
+            }
+        }
+    }
+
+    log::warn!("macOS key monitor channel closed");
 }
