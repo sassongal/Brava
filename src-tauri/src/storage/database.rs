@@ -42,6 +42,8 @@ impl Database {
         let conn = Connection::open(&db_path)
             .map_err(|e| format!("Failed to open database: {}", e))?;
 
+        conn.execute_batch("PRAGMA journal_mode=WAL;").ok();
+
         let db = Database {
             conn: Mutex::new(conn),
         };

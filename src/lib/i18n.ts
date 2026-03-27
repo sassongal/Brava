@@ -174,6 +174,8 @@ const translations = {
   "set.healthMissing": { en: "Missing", he: "חסר" },
   "set.healthUnreachable": { en: "Unreachable", he: "לא זמין" },
   "set.healthFailed": { en: "Check failed", he: "בדיקה נכשלה" },
+  "set.keyValid": { en: "API key verified", he: "מפתח API אומת" },
+  "set.keyInvalid": { en: "API key is invalid", he: "מפתח API אינו תקין" },
   "set.saveFailed": { en: "Failed to save settings", he: "שמירת ההגדרות נכשלה" },
   "set.copiedToClipboard": { en: "Settings copied to clipboard", he: "ההגדרות הועתקו ללוח" },
   "set.exportFailed": { en: "Export failed", he: "הייצוא נכשל" },
@@ -363,6 +365,12 @@ const translations = {
   "err.screenCrash": { en: "Something went wrong in this screen.", he: "משהו השתבש במסך הזה." },
   "lang.english": { en: "English", he: "אנגלית" },
   "lang.hebrew": { en: "Hebrew", he: "עברית" },
+
+  // What's New
+  "whatsNew.title": { en: "What's New", he: "מה חדש" },
+  "whatsNew.version": { en: "Version", he: "גרסה" },
+  "whatsNew.description": { en: "Bug fixes, performance improvements, and new features. Check Settings for details.", he: "תיקוני באגים, שיפורי ביצועים ותכונות חדשות. בדוק בהגדרות לפרטים." },
+  "whatsNew.gotIt": { en: "Got it!", he: "הבנתי!" },
 } as const;
 
 type TranslationKey = keyof typeof translations;

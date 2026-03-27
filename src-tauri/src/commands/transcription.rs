@@ -322,43 +322,74 @@ async fn transcribe_media_internal(
     let metadata = std::fs::metadata(file_path)
         .map_err(|e| format!("Failed to read file: {}", e))?;
     let file_size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+
+    let file_bytes_final;
+    let file_name_final;
+    let mime_type_final;
+
     if file_size_mb > 25.0 {
-        return Err(format!(
-            "File is {:.1}MB. OpenAI Whisper limit is 25MB.",
-            file_size_mb
-        ));
+        // Try to compress with ffmpeg
+        let compressed_path = format!("{}.compressed.mp3", file_path);
+        let ffmpeg_result = std::process::Command::new("ffmpeg")
+            .args(["-i", file_path, "-vn", "-ar", "16000", "-ac", "1", "-b:a", "64k", "-y", &compressed_path])
+            .output();
+
+        match ffmpeg_result {
+            Ok(output) if output.status.success() => {
+                let compressed_size = std::fs::metadata(&compressed_path)
+                    .map(|m| m.len() as f64 / (1024.0 * 1024.0))
+                    .unwrap_or(f64::MAX);
+                if compressed_size <= 25.0 {
+                    let bytes = std::fs::read(&compressed_path)
+                        .map_err(|e| format!("Failed to read compressed file: {}", e))?;
+                    let _ = std::fs::remove_file(&compressed_path);
+                    file_bytes_final = bytes;
+                    file_name_final = "compressed.mp3".to_string();
+                    mime_type_final = "audio/mpeg";
+                } else {
+                    let _ = std::fs::remove_file(&compressed_path);
+                    return Err(format!(
+                        "File is {:.1}MB (compressed {:.1}MB). Max is 25MB. Try a shorter clip.",
+                        file_size_mb, compressed_size
+                    ));
+                }
+            }
+            _ => {
+                let _ = std::fs::remove_file(&compressed_path);
+                return Err(format!(
+                    "File is {:.1}MB. Install ffmpeg to auto-compress, or use a file under 25MB.",
+                    file_size_mb
+                ));
+            }
+        }
+    } else {
+        file_bytes_final = std::fs::read(file_path)
+            .map_err(|e| format!("Failed to read file: {}", e))?;
+        file_name_final = std::path::Path::new(file_path)
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_else(|| "audio.mp3".to_string());
+        mime_type_final = match extension.as_str() {
+            "wav" => "audio/wav",
+            "m4a" | "aac" => "audio/mp4",
+            "ogg" => "audio/ogg",
+            "flac" => "audio/flac",
+            "mp4" | "mov" => "video/mp4",
+            "avi" => "video/x-msvideo",
+            "mkv" => "video/x-matroska",
+            "webm" => "video/webm",
+            _ => "audio/mpeg",
+        };
     }
-
-    // Read the file
-    let file_bytes = std::fs::read(file_path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
-
-    let file_name = std::path::Path::new(file_path)
-        .file_name()
-        .map(|f| f.to_string_lossy().to_string())
-        .unwrap_or_else(|| "audio.mp3".to_string());
-
-    // Derive MIME type from extension
-    let mime_type = match extension.as_str() {
-        "wav" => "audio/wav",
-        "m4a" | "aac" => "audio/mp4",
-        "ogg" => "audio/ogg",
-        "flac" => "audio/flac",
-        "mp4" | "mov" => "video/mp4",
-        "avi" => "video/x-msvideo",
-        "mkv" => "video/x-matroska",
-        "webm" => "video/webm",
-        _ => "audio/mpeg",
-    };
 
     // Build multipart form request
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
-    let part = reqwest::multipart::Part::bytes(file_bytes)
-        .file_name(file_name)
-        .mime_str(mime_type)
+    let part = reqwest::multipart::Part::bytes(file_bytes_final)
+        .file_name(file_name_final)
+        .mime_str(mime_type_final)
         .map_err(|e| format!("Failed to create form part: {}", e))?;
 
     let form = reqwest::multipart::Form::new()

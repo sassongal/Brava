@@ -153,7 +153,8 @@ pub struct ClipboardManager {
     last_hash: Mutex<String>,
     /// Hash of content we wrote to the system clipboard ourselves.
     /// The monitor thread checks this to avoid re-capturing our own writes.
-    skip_hash: Mutex<Option<String>>,
+    /// Includes a timestamp so stale skips are automatically cleared.
+    skip_hash: Mutex<Option<(String, std::time::Instant)>>,
 }
 
 impl ClipboardManager {
@@ -175,19 +176,27 @@ impl ClipboardManager {
     /// Mark content we're about to write to the system clipboard so the monitor skips it.
     pub fn set_skip(&self, content: &str) {
         let hash = ClipboardItem::compute_hash(content);
-        *self.skip_hash.lock().unwrap_or_else(|e| e.into_inner()) = Some(hash);
+        let mut skip = self.skip_hash.lock().unwrap_or_else(|e| e.into_inner());
+        *skip = Some((hash, std::time::Instant::now()));
     }
 
     /// Check if content should be skipped (was written by us), and clear the flag.
+    /// The skip remains valid for 2 seconds to avoid race conditions where the
+    /// monitor polls between set_skip and the actual clipboard write.
     pub fn should_skip(&self, content: &str) -> bool {
         let hash = ClipboardItem::compute_hash(content);
         let mut skip = self.skip_hash.lock().unwrap_or_else(|e| e.into_inner());
-        if skip.as_deref() == Some(&hash) {
-            *skip = None;
-            true
-        } else {
-            false
+        if let Some((ref skip_hash, ref created)) = *skip {
+            if *skip_hash == hash && created.elapsed() < std::time::Duration::from_secs(2) {
+                *skip = None;
+                return true;
+            }
+            // Clear stale skips older than 5 seconds
+            if created.elapsed() > std::time::Duration::from_secs(5) {
+                *skip = None;
+            }
         }
+        false
     }
 
     /// Add a new item to clipboard history. Returns None if duplicate.

@@ -12,6 +12,7 @@ import { LayoutConverter } from "./components/LayoutConverter";
 import { Settings } from "./components/Settings";
 import { Onboarding } from "./components/Onboarding";
 import { ToastContainer } from "./components/Toast";
+import { WhatsNew } from "./components/WhatsNew";
 import { KeyboardLock } from "./components/KeyboardLock";
 import { Transcription } from "./components/Transcription";
 import { useLocale, setLocale, initLocale } from "./lib/i18n";
@@ -280,6 +281,7 @@ function App() {
       </main>
 
       <ToastContainer />
+      <WhatsNew />
       <KeyboardLock />
       <QuickPaste open={quickPasteOpen} onClose={() => setQuickPasteOpen(false)} />
       {wrongLayoutAlert && (

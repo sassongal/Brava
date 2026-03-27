@@ -159,10 +159,34 @@ export function Settings() {
       await updateSettings(settings);
       await saveSettingsToDb();
 
-      if (geminiKey) await setApiKey("gemini", geminiKey);
-      if (openaiKey) await setApiKey("openai", openaiKey);
-      if (claudeKey) await setApiKey("claude", claudeKey);
-      if (openrouterKey) await setApiKey("openrouter", openrouterKey);
+      if (geminiKey) {
+        await setApiKey("gemini", geminiKey);
+        checkApiKeyHealth("gemini", geminiKey).then(h => {
+          if (h.status === "valid") showToast("Gemini: " + t("set.keyValid"), "success");
+          else if (h.status === "invalid") showToast("Gemini: " + t("set.keyInvalid"), "error");
+        }).catch(() => {});
+      }
+      if (openaiKey) {
+        await setApiKey("openai", openaiKey);
+        checkApiKeyHealth("openai", openaiKey).then(h => {
+          if (h.status === "valid") showToast("OpenAI: " + t("set.keyValid"), "success");
+          else if (h.status === "invalid") showToast("OpenAI: " + t("set.keyInvalid"), "error");
+        }).catch(() => {});
+      }
+      if (claudeKey) {
+        await setApiKey("claude", claudeKey);
+        checkApiKeyHealth("claude", claudeKey).then(h => {
+          if (h.status === "valid") showToast("Claude: " + t("set.keyValid"), "success");
+          else if (h.status === "invalid") showToast("Claude: " + t("set.keyInvalid"), "error");
+        }).catch(() => {});
+      }
+      if (openrouterKey) {
+        await setApiKey("openrouter", openrouterKey);
+        checkApiKeyHealth("openrouter", openrouterKey).then(h => {
+          if (h.status === "valid") showToast("OpenRouter: " + t("set.keyValid"), "success");
+          else if (h.status === "invalid") showToast("OpenRouter: " + t("set.keyInvalid"), "error");
+        }).catch(() => {});
+      }
 
       await setAiProvider(settings.ai_provider);
       await Promise.all([

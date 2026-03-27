@@ -147,7 +147,7 @@ pub fn run() {
             });
 
             // Setup system tray
-            setup_tray(app)?;
+            setup_tray(app, &settings)?;
             if settings.start_minimized_to_tray {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
@@ -306,13 +306,22 @@ pub fn run() {
 }
 
 /// Setup the system tray with menu items
-fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let show_item = MenuItemBuilder::with_id("show", "Show Brava").build(app)?;
-    let clipboard_item = MenuItemBuilder::with_id("clipboard", "Clipboard History").build(app)?;
-    let convert_item = MenuItemBuilder::with_id("convert", "Convert Selection").build(app)?;
-    let caffeine_item = MenuItemBuilder::with_id("caffeine", "Caffeine Mode").build(app)?;
-    let settings_item = MenuItemBuilder::with_id("settings", "Settings").build(app)?;
-    let quit_item = MenuItemBuilder::with_id("quit", "Quit Brava").build(app)?;
+fn setup_tray(app: &mut tauri::App, settings: &AppSettings) -> Result<(), Box<dyn std::error::Error>> {
+    let is_hebrew = settings.language == "he";
+
+    let show_label = if is_hebrew { "הצג Brava" } else { "Show Brava" };
+    let clipboard_label = if is_hebrew { "היסטוריית לוח" } else { "Clipboard History" };
+    let convert_label = if is_hebrew { "המר בחירה" } else { "Convert Selection" };
+    let caffeine_label = if is_hebrew { "מצב ערנות" } else { "Caffeine Mode" };
+    let settings_label = if is_hebrew { "הגדרות" } else { "Settings" };
+    let quit_label = if is_hebrew { "צא מ-Brava" } else { "Quit Brava" };
+
+    let show_item = MenuItemBuilder::with_id("show", show_label).build(app)?;
+    let clipboard_item = MenuItemBuilder::with_id("clipboard", clipboard_label).build(app)?;
+    let convert_item = MenuItemBuilder::with_id("convert", convert_label).build(app)?;
+    let caffeine_item = MenuItemBuilder::with_id("caffeine", caffeine_label).build(app)?;
+    let settings_item = MenuItemBuilder::with_id("settings", settings_label).build(app)?;
+    let quit_item = MenuItemBuilder::with_id("quit", quit_label).build(app)?;
 
     let menu = MenuBuilder::new(app)
         .item(&show_item)
