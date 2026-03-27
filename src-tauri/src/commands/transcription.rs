@@ -269,20 +269,32 @@ fn start_worker_if_needed(
                 });
 
             match api_key {
-                Ok(api_key) => match transcribe_media_internal(&task.file_path, &api_key).await {
-                Ok(res) => {
-                    let _ = db.complete_transcription_job(
-                        &task.job_id,
-                        &res.text,
-                        &res.language,
-                        res.duration_seconds,
-                    );
-                    emit_job_update(&app, &task.job_id, "completed", &file_name, Some("Transcription complete".to_string()));
-                }
-                Err(err) => {
-                    let _ = db.fail_transcription_job(&task.job_id, &err);
-                    emit_job_update(&app, &task.job_id, "failed", &file_name, Some(err));
-                }
+                Ok(api_key) => {
+                    let result = tokio::time::timeout(
+                        std::time::Duration::from_secs(600), // 10 minutes max per job
+                        transcribe_media_internal(&task.file_path, &api_key),
+                    ).await;
+
+                    match result {
+                        Ok(Ok(res)) => {
+                            let _ = db.complete_transcription_job(
+                                &task.job_id,
+                                &res.text,
+                                &res.language,
+                                res.duration_seconds,
+                            );
+                            emit_job_update(&app, &task.job_id, "completed", &file_name, Some("Transcription complete".to_string()));
+                        }
+                        Ok(Err(err)) => {
+                            let _ = db.fail_transcription_job(&task.job_id, &err);
+                            emit_job_update(&app, &task.job_id, "failed", &file_name, Some(err));
+                        }
+                        Err(_) => {
+                            let timeout_msg = "Transcription timed out after 10 minutes".to_string();
+                            let _ = db.fail_transcription_job(&task.job_id, &timeout_msg);
+                            emit_job_update(&app, &task.job_id, "failed", &file_name, Some(timeout_msg));
+                        }
+                    }
                 },
                 Err(err) => {
                     let _ = db.fail_transcription_job(&task.job_id, &err);
@@ -446,26 +458,8 @@ impl From<TranscriptionJobRow> for TranscriptionJobRecord {
 }
 
 fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
-    static TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut output = Vec::with_capacity(input.len() * 3 / 4);
-    let mut buf: u32 = 0;
-    let mut bits: u32 = 0;
-
-    for &b in input.as_bytes() {
-        if b == b'=' || b == b'\n' || b == b'\r' || b == b' ' {
-            continue;
-        }
-        let val = TABLE
-            .iter()
-            .position(|&c| c == b)
-            .ok_or_else(|| format!("Invalid base64 character: {}", b as char))? as u32;
-        buf = (buf << 6) | val;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            output.push((buf >> bits) as u8);
-            buf &= (1 << bits) - 1;
-        }
-    }
-    Ok(output)
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD
+        .decode(input)
+        .map_err(|e| format!("Base64 decode error: {}", e))
 }

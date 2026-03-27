@@ -33,6 +33,7 @@ export function ClipboardHistory() {
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -253,10 +254,11 @@ export function ClipboardHistory() {
                       {formatTime(item.created_at)}
                     </span>
                   </div>
-                  {item.image_path ? (
+                  {item.image_path && !brokenImages.has(item.id) ? (
                     <img
                       src={convertFileSrc(item.image_path)}
                       alt={t("clip.imageAlt")}
+                      onError={() => setBrokenImages(prev => new Set(prev).add(item.id))}
                       style={{
                         maxWidth: "100%",
                         maxHeight: "80px",
@@ -264,6 +266,8 @@ export function ClipboardHistory() {
                         objectFit: "cover",
                       }}
                     />
+                  ) : item.image_path ? (
+                    <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>[Image not found]</span>
                   ) : (
                     <p
                       style={{

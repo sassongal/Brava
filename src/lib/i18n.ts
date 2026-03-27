@@ -118,6 +118,8 @@ const translations = {
   "ai.promptTitle": { en: "Prompt title...", he: "כותרת הפרומפט..." },
   "ai.noSavedPrompts": { en: "No saved prompts yet. Use AI tools, then save prompts you want to reuse.", he: "אין פרומפטים שמורים עדיין. השתמש בכלי AI, ואז שמור פרומפטים שתרצה לשחזר." },
   "ai.promptSaved": { en: "Prompt saved", he: "הפרומפט נשמר" },
+  "ai.timedOut": { en: "Request timed out. Try again or switch provider.", he: "הבקשה חרגה מהזמן. נסה שוב או החלף ספק." },
+  "ai.cancelled": { en: "Request cancelled", he: "הבקשה בוטלה" },
 
   // Settings
   "set.title": { en: "Settings", he: "הגדרות" },
@@ -284,6 +286,7 @@ const translations = {
   "trans.loading": { en: "Loading transcriptions...", he: "טוען תמלולים..." },
   "trans.history": { en: "History", he: "היסטוריה" },
   "trans.none": { en: "No transcriptions yet.", he: "עדיין אין תמלולים." },
+  "trans.mediaFiles": { en: "Media Files", he: "קובצי מדיה" },
   "trans.readyPrefix": { en: "Transcription ready", he: "התמלול מוכן" },
   "ai.grammarCorrected": { en: "Grammar corrected", he: "הדקדוק תוקן" },
   "shot.failed": { en: "Screenshot failed", he: "צילום מסך נכשל" },

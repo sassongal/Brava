@@ -59,13 +59,13 @@ export function Transcription() {
   }, []);
 
   const handleFileSelect = async () => {
-    if (enqueuing) return;
+    if (enqueuing || loadingList) return;
     // Use Tauri dialog to pick a file
     const { open: openDialog } = await import("@tauri-apps/plugin-dialog");
     const selected = await openDialog({
       multiple: false,
       filters: [{
-        name: "Media Files",
+        name: t("trans.mediaFiles"),
         extensions: ["mp3", "wav", "m4a", "ogg", "flac", "mp4", "mov", "avi", "mkv", "webm"],
       }],
     });
@@ -175,7 +175,8 @@ export function Transcription() {
           alignItems: "center",
           justifyContent: "center",
           padding: "40px 24px",
-          cursor: "pointer",
+          cursor: enqueuing ? "not-allowed" : "pointer",
+          opacity: enqueuing ? 0.6 : 1,
           border: "2px dashed var(--border)",
           textAlign: "center",
           marginBottom: "16px",

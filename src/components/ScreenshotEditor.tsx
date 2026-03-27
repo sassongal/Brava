@@ -81,6 +81,12 @@ export function ScreenshotEditor() {
       if (nw < 20) { nw = 20; if (resizing.includes("w")) nx = s.x + s.w - 20; }
       if (nh < 20) { nh = 20; if (resizing.includes("n")) ny = s.y + s.h - 20; }
 
+      // Clamp to screen bounds
+      nx = Math.max(0, nx);
+      ny = Math.max(0, ny);
+      nw = Math.min(nw, window.innerWidth - nx);
+      nh = Math.min(nh, window.innerHeight - ny);
+
       setSelection({ x: nx, y: ny, w: nw, h: nh });
       return;
     }

@@ -259,24 +259,10 @@ pub fn copy_screenshot_to_clipboard(
 }
 
 fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
-    static TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut output = Vec::with_capacity(input.len() * 3 / 4);
-    let mut buf: u32 = 0;
-    let mut bits: u32 = 0;
-
-    for &b in input.as_bytes() {
-        if b == b'=' || b == b'\n' || b == b'\r' || b == b' ' { continue; }
-        let val = TABLE.iter().position(|&c| c == b)
-            .ok_or_else(|| format!("Invalid base64 character: {}", b as char))? as u32;
-        buf = (buf << 6) | val;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            output.push((buf >> bits) as u8);
-            buf &= (1 << bits) - 1;
-        }
-    }
-    Ok(output)
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD
+        .decode(input)
+        .map_err(|e| format!("Base64 decode error: {}", e))
 }
 
 fn validate_path_in_screenshots_dir(base_dir: &Path, candidate: &str) -> Result<PathBuf, String> {

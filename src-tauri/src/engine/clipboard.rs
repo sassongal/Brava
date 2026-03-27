@@ -65,7 +65,13 @@ impl ClipboardItem {
     }
 
     pub fn new_image(image_path: String) -> Self {
-        let hash = Self::compute_hash(&image_path);
+        let hash = if std::path::Path::new(&image_path).exists() {
+            // Hash file size + path for dedup
+            let size = std::fs::metadata(&image_path).map(|m| m.len()).unwrap_or(0);
+            Self::compute_hash(&format!("{}:{}", image_path, size))
+        } else {
+            Self::compute_hash(&image_path)
+        };
         let filename = std::path::Path::new(&image_path)
             .file_name()
             .map(|f| f.to_string_lossy().to_string())

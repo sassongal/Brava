@@ -54,6 +54,7 @@ struct TrieNode {
 pub struct SnippetEngine {
     root: TrieNode,
     snippets: HashMap<String, Snippet>,
+    regex_cache: HashMap<String, Regex>,
 }
 
 impl SnippetEngine {
@@ -61,13 +62,30 @@ impl SnippetEngine {
         SnippetEngine {
             root: TrieNode::default(),
             snippets: HashMap::new(),
+            regex_cache: HashMap::new(),
+        }
+    }
+
+    /// Pre-compile and cache the regex for a regex snippet
+    fn cache_regex(&mut self, snippet: &Snippet) {
+        if snippet.is_regex {
+            let anchored = format!("(?:{})$", snippet.trigger);
+            if let Ok(re) = Regex::new(&anchored) {
+                self.regex_cache.insert(snippet.id.clone(), re);
+            }
         }
     }
 
     /// Insert a snippet into the trie
     pub fn add(&mut self, snippet: Snippet) {
+        // Validate trigger
+        let trimmed_trigger = snippet.trigger.trim();
+        if trimmed_trigger.is_empty() || trimmed_trigger.contains('\n') || trimmed_trigger.contains('\t') {
+            return; // Invalid trigger, skip silently
+        }
         let trigger = snippet.trigger.clone();
         let id = snippet.id.clone();
+        self.cache_regex(&snippet);
         self.snippets.insert(id.clone(), snippet);
 
         let mut node = &mut self.root;
@@ -99,6 +117,12 @@ impl SnippetEngine {
         is_regex: Option<bool>,
     ) -> Option<&Snippet> {
         if let Some(snippet) = self.snippets.get_mut(id) {
+            if let Some(ref t) = trigger {
+                let trimmed = t.trim();
+                if trimmed.is_empty() || trimmed.contains('\n') || trimmed.contains('\t') {
+                    return None; // Invalid trigger
+                }
+            }
             if let Some(t) = trigger {
                 snippet.trigger = t;
             }
@@ -115,7 +139,9 @@ impl SnippetEngine {
                 snippet.is_regex = v;
             }
             snippet.updated_at = Utc::now().to_rfc3339();
+            let snippet_clone = snippet.clone();
             self.rebuild_trie();
+            self.cache_regex(&snippet_clone);
             self.snippets.get(id)
         } else {
             None
@@ -155,8 +181,7 @@ impl SnippetEngine {
         // Second pass: regex match against suffix only; choose longest trigger.
         let mut regex_match: Option<(&Snippet, usize)> = None;
         for s in self.snippets.values().filter(|s| s.enabled && s.is_regex) {
-            let anchored = format!("(?:{})$", s.trigger);
-            if let Ok(re) = Regex::new(&anchored) {
+            if let Some(re) = self.regex_cache.get(&s.id) {
                 if re.is_match(buffer) {
                     let score = s.trigger.len();
                     match regex_match {
@@ -199,6 +224,7 @@ impl SnippetEngine {
     pub fn load(&mut self, snippets: Vec<Snippet>) {
         self.snippets.clear();
         self.root = TrieNode::default();
+        self.regex_cache.clear();
         for snippet in snippets {
             self.add(snippet);
         }

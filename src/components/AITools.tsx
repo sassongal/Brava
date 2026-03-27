@@ -91,13 +91,19 @@ export function AITools() {
     if (!input.trim()) return;
     setLoading(true);
     setError(null);
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      setError(t("ai.timedOut"));
+    }, 60000);
     try {
       if (!selectedProvider) {
         throw new Error(t("ai.chooseProvider"));
       }
       const result = await aiEnhancePrompt(input, selectedProvider);
+      clearTimeout(timeoutId);
       setOutput(result);
     } catch (err) {
+      clearTimeout(timeoutId);
       setError(String(err));
       showToast(`${t("ai.requestFailed")}: ${String(err)}`, "error");
     }
@@ -108,13 +114,19 @@ export function AITools() {
     if (!input.trim()) return;
     setLoading(true);
     setError(null);
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      setError(t("ai.timedOut"));
+    }, 60000);
     try {
       if (!selectedProvider) {
         throw new Error(t("ai.chooseProvider"));
       }
       const result = await aiTranslate(input, sourceLang, targetLang, selectedProvider);
+      clearTimeout(timeoutId);
       setOutput(result);
     } catch (err) {
+      clearTimeout(timeoutId);
       setError(String(err));
       showToast(`${t("ai.requestFailed")}: ${String(err)}`, "error");
     }
@@ -125,12 +137,17 @@ export function AITools() {
     if (!input.trim()) return;
     setLoading(true);
     setError(null);
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      setError(t("ai.timedOut"));
+    }, 60000);
     try {
       if (!selectedProvider) {
         throw new Error(t("ai.chooseProvider"));
       }
       if (!streamMode) {
         const result = await aiComplete(input, undefined, selectedProvider);
+        clearTimeout(timeoutId);
         setOutput(result);
       } else {
         const requestId = crypto.randomUUID();
@@ -166,6 +183,7 @@ export function AITools() {
             new Promise<void>((resolve) => setTimeout(resolve, 30000)),
           ]);
         } finally {
+          clearTimeout(timeoutId);
           unsubs.forEach((u) => u());
         }
       }
@@ -306,6 +324,11 @@ export function AITools() {
             `\u{1F4AC} ${t("ai.ask")}`
           )}
         </button>
+        {loading && (
+          <button className="btn" onClick={() => { setLoading(false); setError(t("ai.cancelled")); }}>
+            {t("common.cancel")}
+          </button>
+        )}
         <button className="btn" onClick={() => { setInput(""); setOutput(null); setError(null); }}>
           {t("conv.clear")}
         </button>
