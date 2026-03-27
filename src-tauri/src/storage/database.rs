@@ -198,6 +198,11 @@ impl Database {
     }
 
     fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, String> {
+        // Whitelist known tables to prevent SQL injection via table name
+        let valid_tables = ["clipboard_history", "snippets", "settings", "prompt_library", "schema_migrations", "transcription_jobs"];
+        if !valid_tables.contains(&table) {
+            return Err(format!("Unknown table name: {}", table));
+        }
         let mut stmt = conn
             .prepare(&format!("PRAGMA table_info({})", table))
             .map_err(|e| format!("Failed to inspect table {}: {}", table, e))?;
@@ -509,53 +514,27 @@ impl Database {
     }
 
     pub fn export_backup_data(&self) -> Result<BackupData, String> {
-        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        // Each sub-query acquires and releases its own lock to avoid deadlock.
+        // Previously, holding conn lock while calling load_snippets / list_transcription_jobs
+        // caused a deadlock because those methods also acquire the same lock.
 
-        let mut clipboard_stmt = conn.prepare(
-            "SELECT id, content, preview, category, hash, pinned, favorite, created_at, accessed_at, access_count, source_app, image_path
-             FROM clipboard_history ORDER BY created_at DESC"
-        ).map_err(|e| format!("Failed to prepare clipboard export: {}", e))?;
-        let clipboard_items = clipboard_stmt
-            .query_map([], |row| {
-                let category_str: String = row.get(3)?;
-                let category = serde_json::from_str(&category_str)
-                    .unwrap_or(crate::engine::clipboard::ClipboardCategory::Text);
-                let created_str: String = row.get(7)?;
-                let accessed_str: String = row.get(8)?;
-                Ok(ClipboardItem {
-                    id: row.get(0)?,
-                    content: row.get(1)?,
-                    preview: row.get(2)?,
-                    category,
-                    hash: row.get(4)?,
-                    pinned: row.get::<_, i32>(5)? != 0,
-                    favorite: row.get::<_, i32>(6)? != 0,
-                    created_at: chrono::DateTime::parse_from_rfc3339(&created_str)
-                        .map(|dt| dt.with_timezone(&chrono::Utc))
-                        .unwrap_or_else(|_| chrono::Utc::now()),
-                    accessed_at: chrono::DateTime::parse_from_rfc3339(&accessed_str)
-                        .map(|dt| dt.with_timezone(&chrono::Utc))
-                        .unwrap_or_else(|_| chrono::Utc::now()),
-                    access_count: row.get::<_, u32>(9)?,
-                    source_app: row.get(10)?,
-                    image_path: row.get(11)?,
-                })
-            })
-            .map_err(|e| format!("Failed to query clipboard export: {}", e))?
-            .collect::<SqliteResult<Vec<_>>>()
-            .map_err(|e| format!("Failed to collect clipboard export: {}", e))?;
+        let clipboard_items = self.load_clipboard_history(1_000_000)?;
 
         let snippets = self.load_snippets()?;
         let transcription_jobs = self.list_transcription_jobs(100_000, 0)?;
 
-        let mut settings_stmt = conn
-            .prepare("SELECT key, value FROM settings ORDER BY key ASC")
-            .map_err(|e| format!("Failed to prepare settings export: {}", e))?;
-        let settings_rows = settings_stmt
-            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
-            .map_err(|e| format!("Failed to query settings export: {}", e))?
-            .collect::<SqliteResult<Vec<_>>>()
-            .map_err(|e| format!("Failed to collect settings export: {}", e))?;
+        let settings_rows = {
+            let conn = self.conn.lock().map_err(|e| e.to_string())?;
+            let mut settings_stmt = conn
+                .prepare("SELECT key, value FROM settings ORDER BY key ASC")
+                .map_err(|e| format!("Failed to prepare settings export: {}", e))?;
+            let result = settings_stmt
+                .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+                .map_err(|e| format!("Failed to query settings export: {}", e))?
+                .collect::<SqliteResult<Vec<_>>>()
+                .map_err(|e| format!("Failed to collect settings export: {}", e))?;
+            result
+        };
 
         Ok(BackupData {
             clipboard_items,

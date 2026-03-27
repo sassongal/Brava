@@ -233,28 +233,20 @@ fn start_worker_if_needed(
         loop {
             let task = {
                 let mut q = queue.lock().unwrap_or_else(|e| e.into_inner());
-                q.pop_front()
+                match q.pop_front() {
+                    Some(t) => Some(t),
+                    None => {
+                        // Queue is empty — set running=false while still holding
+                        // the queue lock so no enqueuer can sneak in between the
+                        // emptiness check and the flag update.
+                        let mut running = worker_running.lock().unwrap_or_else(|e| e.into_inner());
+                        *running = false;
+                        None
+                    }
+                }
             };
 
             let Some(task) = task else {
-                {
-                    let mut running = worker_running.lock().unwrap_or_else(|e| e.into_inner());
-                    *running = false;
-                }
-
-                // A task may have been enqueued while we were winding down.
-                // Re-check and continue processing if needed.
-                let has_pending = {
-                    let q = queue.lock().unwrap_or_else(|e| e.into_inner());
-                    !q.is_empty()
-                };
-                if has_pending {
-                    let mut running = worker_running.lock().unwrap_or_else(|e| e.into_inner());
-                    if !*running {
-                        *running = true;
-                        continue;
-                    }
-                }
                 break;
             };
 
@@ -298,9 +290,6 @@ fn start_worker_if_needed(
                 }
             }
         }
-
-        let mut running = worker_running.lock().unwrap_or_else(|e| e.into_inner());
-        *running = false;
     });
 }
 
@@ -318,69 +307,75 @@ async fn transcribe_media_internal(
         return Err("Unsupported media format".to_string());
     }
 
-    // Check file size before reading
-    let metadata = std::fs::metadata(file_path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
-    let file_size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+    // Perform all blocking filesystem and ffmpeg IO on a blocking thread
+    // to avoid starving the async runtime's thread pool.
+    let file_path_owned = file_path.to_string();
+    let extension_owned = extension.clone();
+    let (file_bytes_final, file_name_final, mime_type_final) = tokio::task::spawn_blocking(move || -> Result<(Vec<u8>, String, &'static str), String> {
+        let metadata = std::fs::metadata(&file_path_owned)
+            .map_err(|e| format!("Failed to read file: {}", e))?;
+        let file_size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
 
-    let file_bytes_final;
-    let file_name_final;
-    let mime_type_final;
-
-    if file_size_mb > 25.0 {
-        // Try to compress with ffmpeg
-        let compressed_path = format!("{}.compressed.mp3", file_path);
-        let ffmpeg_result = std::process::Command::new("ffmpeg")
-            .args(["-i", file_path, "-vn", "-ar", "16000", "-ac", "1", "-b:a", "64k", "-y", &compressed_path])
-            .output();
-
-        match ffmpeg_result {
-            Ok(output) if output.status.success() => {
-                let compressed_size = std::fs::metadata(&compressed_path)
-                    .map(|m| m.len() as f64 / (1024.0 * 1024.0))
-                    .unwrap_or(f64::MAX);
-                if compressed_size <= 25.0 {
-                    let bytes = std::fs::read(&compressed_path)
-                        .map_err(|e| format!("Failed to read compressed file: {}", e))?;
-                    let _ = std::fs::remove_file(&compressed_path);
-                    file_bytes_final = bytes;
-                    file_name_final = "compressed.mp3".to_string();
-                    mime_type_final = "audio/mpeg";
-                } else {
-                    let _ = std::fs::remove_file(&compressed_path);
-                    return Err(format!(
-                        "File is {:.1}MB (compressed {:.1}MB). Max is 25MB. Try a shorter clip.",
-                        file_size_mb, compressed_size
-                    ));
+        if file_size_mb > 25.0 {
+            // Try to compress with ffmpeg
+            let compressed_path = format!("{}.compressed.mp3", file_path_owned);
+            // Guard ensures compressed temp file is always cleaned up
+            struct TempFileGuard(String);
+            impl Drop for TempFileGuard {
+                fn drop(&mut self) {
+                    let _ = std::fs::remove_file(&self.0);
                 }
             }
-            _ => {
-                let _ = std::fs::remove_file(&compressed_path);
-                return Err(format!(
-                    "File is {:.1}MB. Install ffmpeg to auto-compress, or use a file under 25MB.",
-                    file_size_mb
-                ));
+            let _guard = TempFileGuard(compressed_path.clone());
+
+            let ffmpeg_result = std::process::Command::new("ffmpeg")
+                .args(["-i", &file_path_owned, "-vn", "-ar", "16000", "-ac", "1", "-b:a", "64k", "-y", &compressed_path])
+                .output();
+
+            match ffmpeg_result {
+                Ok(output) if output.status.success() => {
+                    let compressed_size = std::fs::metadata(&compressed_path)
+                        .map(|m| m.len() as f64 / (1024.0 * 1024.0))
+                        .unwrap_or(f64::MAX);
+                    if compressed_size <= 25.0 {
+                        let bytes = std::fs::read(&compressed_path)
+                            .map_err(|e| format!("Failed to read compressed file: {}", e))?;
+                        Ok((bytes, "compressed.mp3".to_string(), "audio/mpeg"))
+                    } else {
+                        Err(format!(
+                            "File is {:.1}MB (compressed {:.1}MB). Max is 25MB. Try a shorter clip.",
+                            file_size_mb, compressed_size
+                        ))
+                    }
+                }
+                _ => {
+                    Err(format!(
+                        "File is {:.1}MB. Install ffmpeg to auto-compress, or use a file under 25MB.",
+                        file_size_mb
+                    ))
+                }
             }
+        } else {
+            let bytes = std::fs::read(&file_path_owned)
+                .map_err(|e| format!("Failed to read file: {}", e))?;
+            let name = std::path::Path::new(&file_path_owned)
+                .file_name()
+                .map(|f| f.to_string_lossy().to_string())
+                .unwrap_or_else(|| "audio.mp3".to_string());
+            let mime: &'static str = match extension_owned.as_str() {
+                "wav" => "audio/wav",
+                "m4a" | "aac" => "audio/mp4",
+                "ogg" => "audio/ogg",
+                "flac" => "audio/flac",
+                "mp4" | "mov" => "video/mp4",
+                "avi" => "video/x-msvideo",
+                "mkv" => "video/x-matroska",
+                "webm" => "video/webm",
+                _ => "audio/mpeg",
+            };
+            Ok((bytes, name, mime))
         }
-    } else {
-        file_bytes_final = std::fs::read(file_path)
-            .map_err(|e| format!("Failed to read file: {}", e))?;
-        file_name_final = std::path::Path::new(file_path)
-            .file_name()
-            .map(|f| f.to_string_lossy().to_string())
-            .unwrap_or_else(|| "audio.mp3".to_string());
-        mime_type_final = match extension.as_str() {
-            "wav" => "audio/wav",
-            "m4a" | "aac" => "audio/mp4",
-            "ogg" => "audio/ogg",
-            "flac" => "audio/flac",
-            "mp4" | "mov" => "video/mp4",
-            "avi" => "video/x-msvideo",
-            "mkv" => "video/x-matroska",
-            "webm" => "video/webm",
-            _ => "audio/mpeg",
-        };
-    }
+    }).await.map_err(|e| format!("Blocking task failed: {}", e))??;
 
     // Build multipart form request
     let client = reqwest::Client::builder()

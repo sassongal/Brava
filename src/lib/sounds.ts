@@ -1,25 +1,26 @@
 // Brava Sound Effects — Web Audio API synthesis
 let audioCtx: AudioContext | null = null;
-let soundsEnabled = true;
 
 function getAudioContext(): AudioContext {
   if (!audioCtx) audioCtx = new AudioContext();
   return audioCtx;
 }
 
+function isSoundEnabled(): boolean {
+  const stored = localStorage.getItem("brava_sounds");
+  return stored !== "0"; // Default to enabled
+}
+
 export function setSoundsEnabled(enabled: boolean) {
-  soundsEnabled = enabled;
   localStorage.setItem("brava_sounds", enabled ? "1" : "0");
 }
 
 export function getSoundsEnabled(): boolean {
-  const stored = localStorage.getItem("brava_sounds");
-  if (stored !== null) soundsEnabled = stored === "1";
-  return soundsEnabled;
+  return localStorage.getItem("brava_sounds") !== "0";
 }
 
 function playTone(frequency: number, duration: number, type: OscillatorType = "sine", volume: number = 0.15) {
-  if (!soundsEnabled) return;
+  if (!isSoundEnabled()) return;
   try {
     const ctx = getAudioContext();
     if (ctx.state === "suspended") {

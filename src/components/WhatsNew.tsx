@@ -2,6 +2,19 @@ import { useState, useEffect } from "react";
 import { getAppVersion } from "../lib/tauri";
 import { useLocale } from "../lib/i18n";
 
+// Simple version comparison (assumes semver-like: "0.1.0")
+const isUpgrade = (current: string, previous: string): boolean => {
+  const c = current.split(".").map(Number);
+  const p = previous.split(".").map(Number);
+  for (let i = 0; i < Math.max(c.length, p.length); i++) {
+    const cv = c[i] || 0;
+    const pv = p[i] || 0;
+    if (cv > pv) return true;
+    if (cv < pv) return false;
+  }
+  return false;
+};
+
 export function WhatsNew() {
   const [, t] = useLocale();
   const [show, setShow] = useState(false);
@@ -11,7 +24,7 @@ export function WhatsNew() {
     getAppVersion().then(v => {
       setVersion(v);
       const lastSeen = localStorage.getItem("brava_whats_new_version");
-      if (lastSeen && lastSeen !== v) {
+      if (lastSeen && isUpgrade(v, lastSeen)) {
         setShow(true);
       }
       localStorage.setItem("brava_whats_new_version", v);

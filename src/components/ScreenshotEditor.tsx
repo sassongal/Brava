@@ -634,7 +634,10 @@ export function ScreenshotEditor() {
               if (canvasRef.current) {
                 const ctx2 = canvasRef.current.getContext("2d");
                 if (ctx2) {
-                  setUndoStack(prev => [...prev, ctx2.getImageData(0, 0, canvasRef.current!.width, canvasRef.current!.height)]);
+                  setUndoStack(prev => {
+                    const next = [...prev, ctx2.getImageData(0, 0, canvasRef.current!.width, canvasRef.current!.height)];
+                    return next.length > 20 ? next.slice(next.length - 20) : next;
+                  });
                 }
               }
             }

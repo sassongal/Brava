@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard, checkPermissions, type AppSettings, type WrongLayoutAlert } from "./lib/tauri";
 import { showToast } from "./components/Toast";
@@ -31,6 +31,14 @@ function App() {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [wrongLayoutAlert, setWrongLayoutAlert] = useState<WrongLayoutAlert | null>(null);
   const [lastWrongLayoutTs, setLastWrongLayoutTs] = useState(0);
+
+  const activeTabRef = useRef(activeTab);
+  const appSettingsRef = useRef(appSettings);
+  const lastWrongLayoutTsRef = useRef(lastWrongLayoutTs);
+
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { appSettingsRef.current = appSettings; }, [appSettings]);
+  useEffect(() => { lastWrongLayoutTsRef.current = lastWrongLayoutTs; }, [lastWrongLayoutTs]);
 
   useEffect(() => {
     initLocale();
@@ -119,8 +127,8 @@ function App() {
           return;
         }
         const imagePath = await captureFullScreen();
-        await openScreenshotEditor(imagePath);
         playShutterSound();
+        await openScreenshotEditor(imagePath);
       } catch (err) {
         if (!String(err).includes("cancelled")) {
           showToast(`${t("shot.failed")}: ${String(err)}`, "error");
@@ -130,33 +138,34 @@ function App() {
 
     unsubs.push(listen<TranscriptionJobEvent>("transcription-completed", (event) => {
       const payload = event.payload;
-      if (activeTab !== "transcription") {
+      if (activeTabRef.current !== "transcription") {
         setTranscriptionBadgeCount((prev) => prev + 1);
       }
-      if (appSettings?.notification_transcription_complete ?? true) {
+      if (appSettingsRef.current?.notification_transcription_complete ?? true) {
         showToast(`${t("trans.readyPrefix")}: ${payload.file_name}`, "success");
       }
     }));
 
     unsubs.push(listen("clipboard-changed", () => {
-      if (activeTab !== "clipboard") {
+      if (activeTabRef.current !== "clipboard") {
         setClipboardBadgeCount(prev => prev + 1);
       }
     }));
 
     unsubs.push(listen<WrongLayoutAlert>("wrong-layout-detected", async (event) => {
-      if (!appSettings?.realtime_detection) return;
+      if (!appSettingsRef.current?.realtime_detection) return;
       const now = Date.now();
-      if (now - lastWrongLayoutTs < 8000) return;
+      if (now - lastWrongLayoutTsRef.current < 8000) return;
       const alert = event.payload;
       if (!alert) return;
       setWrongLayoutAlert(alert);
       setLastWrongLayoutTs(now);
+      lastWrongLayoutTsRef.current = now;
       playConvertSound();
     }));
 
     return () => { unsubs.forEach((u) => u.then((fn) => fn())); };
-  }, [navigate, activeTab, appSettings, lastWrongLayoutTs, t]);
+  }, [navigate, t]);
 
   useEffect(() => {
     if (activeTab === "transcription") {
