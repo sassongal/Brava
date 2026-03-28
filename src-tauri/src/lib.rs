@@ -512,6 +512,7 @@ fn clipboard_monitor(
     let mut last_content = clipboard.get_text().unwrap_or_default();
     let mut last_image_hash = String::new();
     let mut last_prune = std::time::Instant::now();
+    let mut image_poll_counter: u32 = 0;
     let mut layout_detector = WrongLayoutDetector::new();
     let layout_engine = LayoutEngine::new();
     let mut last_wrong_layout_alert = Instant::now()
@@ -536,7 +537,10 @@ fn clipboard_monitor(
         }
 
         // Only check images if text didn't change (avoid double capture)
-        if !text_changed {
+        // Reduce image polling to every ~2 seconds (500ms * 4) to avoid costly decoding
+        image_poll_counter = image_poll_counter.wrapping_add(1);
+        let should_check_image = !text_changed && image_poll_counter % 4 == 0;
+        if should_check_image {
             match clipboard.get_image() {
                 Ok(img_data) => {
                     let sig = image_signature(&img_data);
@@ -548,7 +552,8 @@ fn clipboard_monitor(
                             let screenshots_dir = app_data_dir.join("screenshots");
                             let _ = std::fs::create_dir_all(&screenshots_dir);
                             let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S_%3f");
-                            let filepath = screenshots_dir.join(format!("clipboard_{}.png", timestamp));
+                            let uid = uuid::Uuid::new_v4();
+                            let filepath = screenshots_dir.join(format!("clipboard_{}_{}.png", timestamp, &uid.to_string()[..8]));
                             let filepath_str = filepath.to_string_lossy().to_string();
 
                             if image::save_buffer(
@@ -572,11 +577,11 @@ fn clipboard_monitor(
                 }
                 Err(_) => {} // No image on clipboard, that's fine
             }
-            continue;
         }
 
         // --- Text processing (only reached when text_changed is true) ---
 
+        if text_changed {
         if let Some(item) = manager.add(last_content.clone()) {
             if let Err(e) = db.save_clipboard_item(&item) {
                 log::error!("Failed to persist clipboard item: {}", e);
@@ -617,6 +622,7 @@ fn clipboard_monitor(
                 }
             }
         }
+        } // end if text_changed
 
         if last_prune.elapsed() >= Duration::from_secs(1800) {
             if let Some(settings_state) = app.try_state::<SettingsState>() {

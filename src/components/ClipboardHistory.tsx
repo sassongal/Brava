@@ -29,6 +29,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 export function ClipboardHistory() {
   const [, t] = useLocale();
   const [items, setItems] = useState<ClipboardItem[]>([]);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -46,11 +47,18 @@ export function ClipboardHistory() {
         0
       );
       setItems(result);
+      setBrokenImages(new Set());
     } catch (err) {
       console.error("Failed to load clipboard items:", err);
     }
     setLoading(false);
   }, [search, categoryFilter]);
+
+  // Debounce search input by 300ms before triggering backend query
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     loadItems();
@@ -108,8 +116,12 @@ export function ClipboardHistory() {
 
   const handleClear = async () => {
     if (!confirm(t("clip.clearAll") + "?")) return;
-    await clearClipboardHistory();
-    loadItems();
+    try {
+      await clearClipboardHistory();
+      loadItems();
+    } catch (err) {
+      showToast("Failed to clear: " + String(err), "error");
+    }
   };
 
   const selectedItems = items.filter((i) => selectedIds.has(i.id));
@@ -185,11 +197,11 @@ export function ClipboardHistory() {
         <input
           type="text"
           placeholder={t("clip.search")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
         />
-        {search && (
-          <button className="btn-icon" onClick={() => setSearch("")}>
+        {searchInput && (
+          <button className="btn-icon" onClick={() => { setSearchInput(""); setSearch(""); }}>
             {"\u{2715}"}
           </button>
         )}
@@ -333,8 +345,8 @@ export function ClipboardHistory() {
                   position: "absolute",
                   left: 0,
                   right: 0,
-                  bottom: "100%",
-                  marginBottom: 4,
+                  top: "100%",
+                  marginTop: 4,
                   padding: "10px 12px",
                   background: "var(--bg-secondary)",
                   border: "1px solid var(--border)",
@@ -358,8 +370,8 @@ export function ClipboardHistory() {
                   position: "absolute",
                   left: 0,
                   right: 0,
-                  bottom: "100%",
-                  marginBottom: 4,
+                  top: "100%",
+                  marginTop: 4,
                   padding: 4,
                   background: "var(--bg-secondary)",
                   border: "1px solid var(--border)",
