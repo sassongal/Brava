@@ -41,10 +41,8 @@ pub fn convert_clipboard_text(
     state: State<'_, LayoutState>,
     clipboard_state: State<'_, ClipboardState>,
 ) -> Result<String, String> {
-    // Save current clipboard content to restore if needed
     let mut clipboard = arboard::Clipboard::new()
         .map_err(|e| format!("Failed to access clipboard: {}", e))?;
-    let original_clipboard = clipboard.get_text().unwrap_or_default();
 
     // Step 1: Simulate Cmd+C to copy selected text
     simulate_copy();
@@ -57,11 +55,6 @@ pub fn convert_clipboard_text(
 
     if text.trim().is_empty() {
         return Err("No text selected. Select text first, then press the hotkey.".to_string());
-    }
-
-    // If clipboard didn't change (nothing was selected), try the original
-    if text == original_clipboard && text.trim().is_empty() {
-        return Err("No text selected".to_string());
     }
 
     // Step 3: Convert
@@ -119,6 +112,12 @@ fn simulate_paste() {
     }
 }
 
+/// Expose paste simulation as a Tauri command so the popup window can trigger it.
+#[tauri::command]
+pub fn simulate_paste_action() {
+    simulate_paste();
+}
+
 #[derive(Serialize)]
 pub struct WrongLayoutAlert {
     pub wrong_text: String,
@@ -134,7 +133,7 @@ pub fn detect_wrong_layout_alert(
     state: State<'_, LayoutState>,
 ) -> Option<WrongLayoutAlert> {
     let trimmed = text.trim();
-    if trimmed.chars().count() < 6 || trimmed.len() > 200 {
+    if trimmed.chars().count() < 6 || trimmed.chars().count() > 200 {
         return None;
     }
 

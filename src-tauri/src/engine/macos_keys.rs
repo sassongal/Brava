@@ -186,6 +186,10 @@ pub mod monitor {
 
                 log::info!("macOS global key monitor started successfully");
                 CFRunLoopRun(); // This blocks forever
+
+                // CFRunLoopRun returned — tap was disabled or stopped
+                drop(Box::from_raw(tx_raw));
+                log::info!("macOS key monitor stopped");
             }
         });
 

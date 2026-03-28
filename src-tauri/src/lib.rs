@@ -267,6 +267,7 @@ pub fn run() {
             commands::layout::get_layouts,
             commands::layout::convert_clipboard_text,
             commands::layout::detect_wrong_layout_alert,
+            commands::layout::simulate_paste_action,
             // Clipboard commands
             commands::clipboard::get_clipboard_items,
             commands::clipboard::add_clipboard_item,
@@ -606,17 +607,12 @@ fn handle_wrong_layout_event(app: &tauri::AppHandle, event: &WrongLayoutDetected
 
     match mode.as_str() {
         "autofix" => {
-            // Auto-fix: write converted text to clipboard and simulate paste
-            let mut clip = arboard::Clipboard::new().ok();
-            if let Some(ref mut c) = clip {
-                let _ = c.set_text(&event.suggested_text);
-                #[cfg(target_os = "macos")]
-                {
-                    let _ = std::process::Command::new("osascript")
-                        .args(["-e", r#"tell application "System Events" to keystroke "v" using command down"#])
-                        .output();
-                }
+            // Write converted text to clipboard (user can paste with Cmd+V)
+            if let Ok(mut clip) = arboard::Clipboard::new() {
+                let _ = clip.set_text(&event.suggested_text);
             }
+            use tauri::Emitter;
+            let _ = app.emit("toast", format!("Layout corrected, paste to apply ({} \u{2192} {})", event.source_layout, event.target_layout));
         }
         "popup" => {
             let _ = open_wrong_layout_popup(app, event);
@@ -632,6 +628,7 @@ fn open_wrong_layout_popup(app: &tauri::AppHandle, event: &WrongLayoutDetectedEv
     // Close existing popup if any
     if let Some(w) = app.get_webview_window("wrong-layout-popup") {
         let _ = w.close();
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
     let params = format!(
@@ -663,7 +660,8 @@ fn open_wrong_layout_popup(app: &tauri::AppHandle, event: &WrongLayoutDetectedEv
 
 fn should_analyze_wrong_layout(text: &str) -> bool {
     let trimmed = text.trim();
-    if trimmed.len() < 4 || trimmed.len() > 200 {
+    let char_count = trimmed.chars().count();
+    if char_count < 4 || char_count > 200 {
         return false;
     }
     let lower = trimmed.to_lowercase();
@@ -826,7 +824,7 @@ pub mod monitor_cmd {
 
     #[tauri::command]
     pub fn start_global_typing_monitor(app: tauri::AppHandle) -> Result<bool, String> {
-        if TYPING_MONITOR_RUNNING.load(Ordering::SeqCst) {
+        if TYPING_MONITOR_RUNNING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
             return Ok(true); // Already running
         }
 
@@ -836,6 +834,7 @@ pub mod monitor_cmd {
             .unwrap_or(false);
 
         if !settings_enabled {
+            TYPING_MONITOR_RUNNING.store(false, Ordering::SeqCst);
             return Err("Global typing detection is not enabled in settings".to_string());
         }
 
@@ -845,10 +844,10 @@ pub mod monitor_cmd {
             extern "C" { fn AXIsProcessTrusted() -> u8; }
             let has_access = unsafe { AXIsProcessTrusted() != 0 };
             if !has_access {
+                TYPING_MONITOR_RUNNING.store(false, Ordering::SeqCst);
                 return Err("Accessibility permission required. Grant it in System Settings > Privacy > Accessibility.".to_string());
             }
 
-            TYPING_MONITOR_RUNNING.store(true, Ordering::SeqCst);
             let app_handle = app.clone();
             std::thread::spawn(move || {
                 match engine::macos_keys::monitor::start_key_monitor() {
@@ -866,7 +865,6 @@ pub mod monitor_cmd {
 
         #[cfg(not(target_os = "macos"))]
         {
-            TYPING_MONITOR_RUNNING.store(true, Ordering::SeqCst);
             let app_handle = app.clone();
             std::thread::spawn(move || {
                 global_key_monitor(app_handle);

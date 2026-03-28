@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import logoMark from "../assets/brava-brand/logos/logo-mark.svg";
@@ -10,33 +10,58 @@ export function WrongLayoutPopup() {
   const source = decodeURIComponent(params.get("source") || "");
   const target = decodeURIComponent(params.get("target") || "");
 
-  const handleFix = async () => {
-    try {
-      await invoke("write_system_clipboard", { text: suggestedText });
-      await invoke("convert_clipboard_text");
-    } catch {}
+  const dismissedRef = useRef(false);
+
+  const close = async () => {
+    if (dismissedRef.current) return;
+    dismissedRef.current = true;
     const win = getCurrentWindow();
     await win.close();
   };
 
+  const handleFix = async () => {
+    try {
+      // Write the already-converted text to clipboard
+      await invoke("write_system_clipboard", { text: suggestedText });
+      // Brief delay then simulate paste and close
+      setTimeout(async () => {
+        try {
+          await invoke("simulate_paste_action");
+        } catch {}
+        await close();
+      }, 100);
+    } catch {
+      await close();
+    }
+  };
+
   const handleDismiss = async () => {
-    const win = getCurrentWindow();
-    await win.close();
+    await close();
   };
 
   // Keyboard shortcuts
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Enter") handleFix();
-      if (e.key === "Escape") handleDismiss();
+    const handler = async (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        try {
+          await invoke("write_system_clipboard", { text: suggestedText });
+          setTimeout(async () => {
+            try { await invoke("simulate_paste_action"); } catch {}
+            await close();
+          }, 100);
+        } catch {}
+      }
+      if (e.key === "Escape") {
+        await close();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [suggestedText]);
 
   // Auto-dismiss after 6 seconds
   useEffect(() => {
-    const timer = setTimeout(handleDismiss, 6000);
+    const timer = setTimeout(() => close(), 6000);
     return () => clearTimeout(timer);
   }, []);
 

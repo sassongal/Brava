@@ -280,6 +280,10 @@ pub fn import_settings(
     let new_settings: AppSettings = serde_json::from_str(json)
         .map_err(|e| format!("Invalid settings JSON: {}", e))?;
     // Validate critical fields
+    let valid_modes = ["popup", "autofix", "off"];
+    if !valid_modes.contains(&new_settings.wrong_layout_mode.as_str()) {
+        return Err("Invalid wrong_layout_mode. Must be: popup, autofix, or off".to_string());
+    }
     parse_ollama_endpoint(&new_settings.ollama_endpoint)?;
     if new_settings.max_clipboard_items < 10 || new_settings.max_clipboard_items > 1000 {
         return Err("max_clipboard_items must be between 10 and 1000".to_string());
