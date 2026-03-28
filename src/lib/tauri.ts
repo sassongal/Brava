@@ -154,11 +154,15 @@ export interface PermissionStatus {
   accessibility: boolean;
   screen_recording: boolean;
   microphone: boolean;
+  automation: boolean;
   platform: string;
   arch: string;
   os_version: string;
   app_version: string;
 }
+
+export const startGlobalTypingMonitor = () =>
+  invoke<boolean>("start_global_typing_monitor");
 
 // Settings persistence commands
 export const saveSettingsToDb = () =>

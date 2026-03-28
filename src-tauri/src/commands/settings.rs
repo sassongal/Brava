@@ -151,6 +151,7 @@ pub struct FullPermissionStatus {
     pub accessibility: bool,
     pub screen_recording: bool,
     pub microphone: bool,
+    pub automation: bool,
     pub platform: String,
     pub arch: String,
     pub os_version: String,
@@ -163,6 +164,7 @@ pub fn check_permissions() -> FullPermissionStatus {
         accessibility: check_accessibility_permission(),
         screen_recording: check_screen_recording_permission(),
         microphone: check_microphone_permission(),
+        automation: check_automation_permission(),
         platform: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
         os_version: get_os_version(),
@@ -206,6 +208,20 @@ fn check_microphone_permission() -> bool {
 
 #[cfg(not(target_os = "macos"))]
 fn check_microphone_permission() -> bool {
+    true
+}
+
+#[cfg(target_os = "macos")]
+fn check_automation_permission() -> bool {
+    std::process::Command::new("osascript")
+        .args(["-e", r#"tell application "System Events" to return name of first process"#])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn check_automation_permission() -> bool {
     true
 }
 

@@ -19,6 +19,7 @@ import {
   resetHotkeyDefaults,
   checkApiKeyHealth,
   checkPermissions,
+  startGlobalTypingMonitor,
   type AppSettings,
   type AIProviderInfo,
   type AppInfo,
@@ -196,6 +197,11 @@ export function Settings() {
         runHealthCheck("openrouter"),
         runHealthCheck("ollama"),
       ]);
+      if (settings.global_typing_detection) {
+        startGlobalTypingMonitor()
+          .then(() => showToast(t("set.monitorStarted"), "success"))
+          .catch((err) => showToast(t("set.monitorFailed") + ": " + String(err), "error"));
+      }
       showToast(t("set.saved"), "success");
     } catch (err) {
       showToast(`${t("set.saveFailed")}: ${String(err)}`, "error");
@@ -599,6 +605,7 @@ export function Settings() {
                   { key: "accessibility", granted: permStatus.accessibility, label: t("set.perm.accessibility"), desc: t("set.perm.accessibilityDesc"), url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility" },
                   { key: "screen_recording", granted: permStatus.screen_recording, label: t("set.perm.screenRecording"), desc: t("set.perm.screenRecordingDesc"), url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" },
                   { key: "microphone", granted: permStatus.microphone, label: t("set.perm.microphone"), desc: t("set.perm.microphoneDesc"), url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone" },
+                  { key: "automation", granted: permStatus.automation, label: t("set.perm.automation"), desc: t("set.perm.automationDesc"), url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation" },
                 ].map((perm) => (
                   <div key={perm.key} style={{
                     display: "flex", alignItems: "center", gap: "12px",

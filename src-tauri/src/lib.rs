@@ -18,8 +18,11 @@ use serde::Serialize;
 use storage::database::Database;
 use storage::settings::AppSettings;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use std::path::PathBuf;
+
+static TYPING_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
@@ -212,9 +215,11 @@ pub fn run() {
             #[cfg(not(target_os = "macos"))]
             {
                 if settings.global_typing_detection {
+                    TYPING_MONITOR_RUNNING.store(true, Ordering::SeqCst);
                     let app_handle = app.handle().clone();
                     std::thread::spawn(move || {
                         global_key_monitor(app_handle);
+                        TYPING_MONITOR_RUNNING.store(false, Ordering::SeqCst);
                     });
                 }
             }
@@ -230,6 +235,7 @@ pub fn run() {
                     };
 
                     if has_access {
+                        TYPING_MONITOR_RUNNING.store(true, Ordering::SeqCst);
                         let app_handle = app.handle().clone();
                         std::thread::spawn(move || {
                             match engine::macos_keys::monitor::start_key_monitor() {
@@ -240,6 +246,7 @@ pub fn run() {
                                     log::error!("Failed to start macOS key monitor: {}", e);
                                 }
                             }
+                            TYPING_MONITOR_RUNNING.store(false, Ordering::SeqCst);
                         });
                     } else {
                         log::warn!(
@@ -306,6 +313,7 @@ pub fn run() {
             commands::settings::toggle_keyboard_lock,
             commands::settings::get_keyboard_lock_status,
             commands::settings::check_permissions,
+            monitor_cmd::start_global_typing_monitor,
             // Hotkey commands
             commands::hotkeys::get_hotkey_bindings,
             commands::hotkeys::update_hotkey,
@@ -713,4 +721,60 @@ fn macos_key_consumer(
     }
 
     log::warn!("macOS key monitor channel closed");
+}
+
+pub mod monitor_cmd {
+    use super::*;
+
+    #[tauri::command]
+    pub fn start_global_typing_monitor(app: tauri::AppHandle) -> Result<bool, String> {
+        if TYPING_MONITOR_RUNNING.load(Ordering::SeqCst) {
+            return Ok(true); // Already running
+        }
+
+        // Check settings
+        let settings_enabled = app.try_state::<SettingsState>()
+            .and_then(|s| s.0.lock().ok().map(|st| st.global_typing_detection))
+            .unwrap_or(false);
+
+        if !settings_enabled {
+            return Err("Global typing detection is not enabled in settings".to_string());
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // Check accessibility permission
+            extern "C" { fn AXIsProcessTrusted() -> u8; }
+            let has_access = unsafe { AXIsProcessTrusted() != 0 };
+            if !has_access {
+                return Err("Accessibility permission required. Grant it in System Settings > Privacy > Accessibility.".to_string());
+            }
+
+            TYPING_MONITOR_RUNNING.store(true, Ordering::SeqCst);
+            let app_handle = app.clone();
+            std::thread::spawn(move || {
+                match engine::macos_keys::monitor::start_key_monitor() {
+                    Ok(rx) => {
+                        macos_key_consumer(app_handle, rx);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to start macOS key monitor: {}", e);
+                    }
+                }
+                TYPING_MONITOR_RUNNING.store(false, Ordering::SeqCst);
+            });
+            return Ok(true);
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            TYPING_MONITOR_RUNNING.store(true, Ordering::SeqCst);
+            let app_handle = app.clone();
+            std::thread::spawn(move || {
+                global_key_monitor(app_handle);
+                TYPING_MONITOR_RUNNING.store(false, Ordering::SeqCst);
+            });
+            return Ok(true);
+        }
+    }
 }
