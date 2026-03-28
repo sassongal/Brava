@@ -35,34 +35,88 @@ pub fn get_layouts(state: State<'_, LayoutState>) -> Vec<LayoutInfo> {
     engine.available_layouts()
 }
 
-/// Convert the current system clipboard content and write back
+/// Convert selected text from any app: simulates Cmd+C, converts, writes back, simulates Cmd+V
 #[tauri::command]
 pub fn convert_clipboard_text(
     state: State<'_, LayoutState>,
     clipboard_state: State<'_, ClipboardState>,
 ) -> Result<String, String> {
-    // Read current clipboard
+    // Save current clipboard content to restore if needed
     let mut clipboard = arboard::Clipboard::new()
         .map_err(|e| format!("Failed to access clipboard: {}", e))?;
+    let original_clipboard = clipboard.get_text().unwrap_or_default();
+
+    // Step 1: Simulate Cmd+C to copy selected text
+    simulate_copy();
+    // Brief pause to let the OS process the copy
+    std::thread::sleep(std::time::Duration::from_millis(150));
+
+    // Step 2: Read the clipboard (now contains the selected text)
     let text = clipboard.get_text()
         .map_err(|e| format!("Failed to read clipboard: {}", e))?;
 
     if text.trim().is_empty() {
-        return Err("Clipboard is empty".to_string());
+        return Err("No text selected. Select text first, then press the hotkey.".to_string());
     }
 
-    // Convert
+    // If clipboard didn't change (nothing was selected), try the original
+    if text == original_clipboard && text.trim().is_empty() {
+        return Err("No text selected".to_string());
+    }
+
+    // Step 3: Convert
     let engine = state.0.lock().map_err(|e| e.to_string())?;
     let result = engine.auto_convert(&text)?;
 
-    // Mark content so clipboard monitor skips it
-    clipboard_state.0.set_skip(&result.converted);
+    if result.converted == text {
+        return Err("Text is already in the correct layout".to_string());
+    }
 
-    // Write back to clipboard
+    // Step 4: Write converted text to clipboard
+    clipboard_state.0.set_skip(&result.converted);
     clipboard.set_text(&result.converted)
         .map_err(|e| format!("Failed to write clipboard: {}", e))?;
 
+    // Step 5: Simulate Cmd+V to paste the converted text
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    simulate_paste();
+
     Ok(result.converted)
+}
+
+/// Simulate Cmd+C (copy) using platform-specific methods
+fn simulate_copy() {
+    if cfg!(target_os = "macos") {
+        let _ = std::process::Command::new("osascript")
+            .args(["-e", r#"tell application "System Events" to keystroke "c" using command down"#])
+            .output();
+    } else if cfg!(target_os = "linux") {
+        let _ = std::process::Command::new("xdotool")
+            .args(["key", "ctrl+c"])
+            .output();
+    } else if cfg!(target_os = "windows") {
+        // On Windows, use PowerShell to send Ctrl+C
+        let _ = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", r#"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^c")"#])
+            .output();
+    }
+}
+
+/// Simulate Cmd+V (paste) using platform-specific methods
+fn simulate_paste() {
+    if cfg!(target_os = "macos") {
+        let _ = std::process::Command::new("osascript")
+            .args(["-e", r#"tell application "System Events" to keystroke "v" using command down"#])
+            .output();
+    } else if cfg!(target_os = "linux") {
+        let _ = std::process::Command::new("xdotool")
+            .args(["key", "ctrl+v"])
+            .output();
+    } else if cfg!(target_os = "windows") {
+        let _ = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", r#"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^v")"#])
+            .output();
+    }
 }
 
 #[derive(Serialize)]
