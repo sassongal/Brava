@@ -9,8 +9,11 @@ export function WrongLayoutPopup() {
   const suggestedText = decodeURIComponent(params.get("suggested") || "");
   const source = decodeURIComponent(params.get("source") || "");
   const target = decodeURIComponent(params.get("target") || "");
+  const lang = params.get("lang") || "en";
+  const isHe = lang === "he";
 
   const dismissedRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const close = async () => {
     if (dismissedRef.current) return;
@@ -39,6 +42,32 @@ export function WrongLayoutPopup() {
     await close();
   };
 
+  // Focus container on mount so keyboard events work
+  useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
+
+  // Play piano chime on popup open
+  useEffect(() => {
+    try {
+      const ctx = new AudioContext();
+      const play = (freq: number, delay: number, dur: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + dur);
+      };
+      play(880, 0, 0.15);   // A5
+      play(1108, 0.08, 0.2); // C#6
+    } catch {}
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
@@ -66,20 +95,25 @@ export function WrongLayoutPopup() {
   }, []);
 
   return (
-    <div style={{
-      display: "flex", flexDirection: "column",
-      padding: "12px 16px",
-      background: "#FFF4EA",
-      fontFamily: "'DM Sans', system-ui, sans-serif",
-      height: "100vh",
-      overflow: "hidden",
-      borderRadius: 0,
-    }}>
+    <div
+      tabIndex={0}
+      ref={containerRef}
+      style={{
+        display: "flex", flexDirection: "column",
+        padding: "12px 16px",
+        background: "#FFF4EA",
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+        height: "100vh",
+        overflow: "hidden",
+        borderRadius: 0,
+        direction: isHe ? "rtl" : "ltr",
+      }}
+    >
       {/* Header with logo */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <img src={logoMark} width={18} height={18} alt="" />
         <span style={{ fontSize: 12, fontWeight: 600, color: "#2C1E1E", letterSpacing: "0.02em" }}>
-          Wrong layout detected
+          {isHe ? "\u05D6\u05D5\u05D4\u05EA\u05D4 \u05E4\u05E8\u05D9\u05E1\u05D4 \u05E9\u05D2\u05D5\u05D9\u05D4" : "Wrong layout detected"}
         </span>
       </div>
 
@@ -105,7 +139,7 @@ export function WrongLayoutPopup() {
             borderRadius: 5, cursor: "pointer",
           }}
         >
-          Fix (Enter)
+          {isHe ? "\u05EA\u05E7\u05DF (Enter)" : "Fix (Enter)"}
         </button>
         <button
           onClick={handleDismiss}
@@ -115,9 +149,9 @@ export function WrongLayoutPopup() {
             border: "1px solid #EDDCC6", borderRadius: 5, cursor: "pointer",
           }}
         >
-          Dismiss (Esc)
+          {isHe ? "\u05D4\u05EA\u05E2\u05DC\u05DD (Esc)" : "Dismiss (Esc)"}
         </button>
-        <span style={{ fontSize: 10, color: "#9A7A7A", marginLeft: "auto" }}>
+        <span style={{ fontSize: 10, color: "#9A7A7A", marginLeft: isHe ? undefined : "auto", marginRight: isHe ? "auto" : undefined }}>
           {source} &rarr; {target}
         </span>
       </div>

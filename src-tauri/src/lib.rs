@@ -594,7 +594,7 @@ fn clipboard_monitor(
                     layout_detector.push_char(ch);
                 }
                 if layout_detector.analyze().is_some()
-                    && last_wrong_layout_alert.elapsed() >= Duration::from_secs(8)
+                    && last_wrong_layout_alert.elapsed() >= Duration::from_secs(5)
                 {
                     if let Ok(converted) = layout_engine.auto_convert(&item.content) {
                         if converted.converted != item.content {
@@ -682,12 +682,17 @@ fn open_wrong_layout_popup(app: &tauri::AppHandle, event: &WrongLayoutDetectedEv
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
+    let language = app.try_state::<SettingsState>()
+        .and_then(|s| s.0.lock().ok().map(|st| st.language.clone()))
+        .unwrap_or_else(|| "en".to_string());
+
     let params = format!(
-        "index.html?popup=wronglayout&wrong={}&suggested={}&source={}&target={}",
+        "index.html?popup=wronglayout&wrong={}&suggested={}&source={}&target={}&lang={}",
         urlencoding::encode(&event.wrong_text),
         urlencoding::encode(&event.suggested_text),
         urlencoding::encode(&event.source_layout),
         urlencoding::encode(&event.target_layout),
+        urlencoding::encode(&language),
     );
 
     let _window = WebviewWindowBuilder::new(
@@ -705,6 +710,11 @@ fn open_wrong_layout_popup(app: &tauri::AppHandle, event: &WrongLayoutDetectedEv
     .resizable(false)
     .build()
     .map_err(|e| format!("Failed to open popup: {}", e))?;
+
+    // Force focus on the popup window
+    if let Some(win) = app.get_webview_window("wrong-layout-popup") {
+        let _ = win.set_focus();
+    }
 
     Ok(())
 }
@@ -765,7 +775,7 @@ fn global_key_monitor(app: tauri::AppHandle) {
         if !should_analyze_wrong_layout(&snapshot) {
             return;
         }
-        if last_alert.elapsed() < Duration::from_secs(8) {
+        if last_alert.elapsed() < Duration::from_secs(5) {
             return;
         }
 
@@ -835,7 +845,7 @@ fn macos_key_consumer(
         if !should_analyze_wrong_layout(&snapshot) {
             continue;
         }
-        if last_alert.elapsed() < Duration::from_secs(8) {
+        if last_alert.elapsed() < Duration::from_secs(5) {
             continue;
         }
 
