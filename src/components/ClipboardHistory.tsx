@@ -34,6 +34,7 @@ export function ClipboardHistory() {
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -209,7 +210,13 @@ export function ClipboardHistory() {
       ) : (
         <div className="grid">
           {items.map((item) => (
-            <div key={item.id} className="card" style={{ position: "relative" }}>
+            <div
+              key={item.id}
+              className="card"
+              style={{ position: "relative" }}
+              onMouseEnter={() => setHoveredId(item.id)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
               <div
                 style={{
                   display: "flex",
@@ -321,6 +328,53 @@ export function ClipboardHistory() {
                   </button>
                 </div>
               </div>
+              {hoveredId === item.id && !item.image_path && item.content.length > 80 && (
+                <div style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: "100%",
+                  marginBottom: 4,
+                  padding: "10px 12px",
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-lg)",
+                  boxShadow: "var(--shadow-lg)",
+                  zIndex: 50,
+                  maxHeight: 300,
+                  overflowY: "auto",
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  color: "var(--text-primary)",
+                  pointerEvents: "none",
+                }}>
+                  {item.content}
+                </div>
+              )}
+              {hoveredId === item.id && item.image_path && (
+                <div style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: "100%",
+                  marginBottom: 4,
+                  padding: 4,
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-lg)",
+                  boxShadow: "var(--shadow-lg)",
+                  zIndex: 50,
+                  pointerEvents: "none",
+                }}>
+                  <img
+                    src={convertFileSrc(item.image_path)}
+                    alt=""
+                    style={{ maxWidth: "100%", maxHeight: 250, borderRadius: "var(--radius-sm)", display: "block" }}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>

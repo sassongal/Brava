@@ -208,8 +208,9 @@ pub fn run() {
             let app_handle = app.handle().clone();
             let monitor_clipboard = clipboard_manager.clone();
             let monitor_db = db.clone();
+            let monitor_app_data_dir = app_data_dir.clone();
             std::thread::spawn(move || {
-                clipboard_monitor(app_handle, monitor_clipboard, monitor_db);
+                clipboard_monitor(app_handle, monitor_clipboard, monitor_db, monitor_app_data_dir);
             });
 
             #[cfg(not(target_os = "macos"))]
@@ -479,11 +480,19 @@ fn load_api_keys_from_keyring(ai_state: &AIState) {
     }
 }
 
+/// Compute a lightweight signature for clipboard image data to detect changes
+/// without comparing all pixel bytes.
+fn image_signature(img: &arboard::ImageData) -> String {
+    let first_bytes: Vec<u8> = img.bytes.iter().take(64).copied().collect();
+    format!("{}x{}:{:?}", img.width, img.height, first_bytes)
+}
+
 /// Background thread that polls the system clipboard every 500ms.
 fn clipboard_monitor(
     app: tauri::AppHandle,
     manager: Arc<ClipboardManager>,
     db: Arc<Database>,
+    app_data_dir: PathBuf,
 ) {
     use tauri::Manager;
     use tauri::Emitter;
@@ -501,6 +510,7 @@ fn clipboard_monitor(
     };
 
     let mut last_content = clipboard.get_text().unwrap_or_default();
+    let mut last_image_hash = String::new();
     let mut last_prune = std::time::Instant::now();
     let mut layout_detector = WrongLayoutDetector::new();
     let layout_engine = LayoutEngine::new();
@@ -511,28 +521,63 @@ fn clipboard_monitor(
     loop {
         std::thread::sleep(Duration::from_millis(500));
 
-        let current = match clipboard.get_text() {
-            Ok(text) => text,
-            Err(_) => continue,
-        };
+        // Check text first
+        let mut text_changed = false;
+        if let Ok(current) = clipboard.get_text() {
+            if !current.is_empty() && current != last_content && current.len() <= 1_048_576 {
+                if !manager.should_skip(&current) {
+                    last_content = current.clone();
+                    text_changed = true;
+                    // (text processing continues below via `current`)
+                } else {
+                    last_content = current;
+                }
+            }
+        }
 
-        if current.is_empty() || current == last_content {
+        // Only check images if text didn't change (avoid double capture)
+        if !text_changed {
+            match clipboard.get_image() {
+                Ok(img_data) => {
+                    let sig = image_signature(&img_data);
+                    if sig != last_image_hash {
+                        if !manager.should_skip(&sig) {
+                            last_image_hash = sig;
+
+                            // Save image to file
+                            let screenshots_dir = app_data_dir.join("screenshots");
+                            let _ = std::fs::create_dir_all(&screenshots_dir);
+                            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S_%3f");
+                            let filepath = screenshots_dir.join(format!("clipboard_{}.png", timestamp));
+                            let filepath_str = filepath.to_string_lossy().to_string();
+
+                            if image::save_buffer(
+                                &filepath,
+                                &img_data.bytes,
+                                img_data.width as u32,
+                                img_data.height as u32,
+                                image::ColorType::Rgba8,
+                            ).is_ok() {
+                                if let Some(item) = manager.add_image(filepath_str) {
+                                    if let Err(e) = db.save_clipboard_item(&item) {
+                                        log::error!("Failed to persist clipboard image: {}", e);
+                                    }
+                                    let _ = app.emit("clipboard-changed", &item);
+                                }
+                            }
+                        } else {
+                            last_image_hash = sig;
+                        }
+                    }
+                }
+                Err(_) => {} // No image on clipboard, that's fine
+            }
             continue;
         }
 
-        // Skip content larger than 1MB
-        if current.len() > 1_048_576 {
-            continue;
-        }
+        // --- Text processing (only reached when text_changed is true) ---
 
-        last_content = current.clone();
-
-        // Skip content we wrote ourselves (from write_system_clipboard)
-        if manager.should_skip(&current) {
-            continue;
-        }
-
-        if let Some(item) = manager.add(current) {
+        if let Some(item) = manager.add(last_content.clone()) {
             if let Err(e) = db.save_clipboard_item(&item) {
                 log::error!("Failed to persist clipboard item: {}", e);
             }
