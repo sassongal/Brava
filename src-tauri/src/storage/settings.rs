@@ -19,6 +19,8 @@ pub struct AppSettings {
     pub realtime_detection: bool,
     #[serde(default = "default_global_typing_detection")]
     pub global_typing_detection: bool,
+    #[serde(default = "default_wrong_layout_mode")]
+    pub wrong_layout_mode: String, // "popup", "autofix", "off"
 
     // Clipboard
     pub clipboard_enabled: bool,
@@ -70,6 +72,7 @@ fn default_ai_output_language() -> String { "auto".to_string() }
 fn default_global_typing_detection() -> bool {
     !cfg!(target_os = "macos")
 }
+fn default_wrong_layout_mode() -> String { "popup".to_string() }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -85,6 +88,7 @@ impl Default for AppSettings {
             auto_detect_layout: true,
             realtime_detection: true,
             global_typing_detection: default_global_typing_detection(),
+            wrong_layout_mode: "popup".to_string(),
 
             clipboard_enabled: true,
             max_clipboard_items: 500,

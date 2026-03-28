@@ -370,6 +370,7 @@ export interface AppSettings {
   auto_detect_layout: boolean;
   realtime_detection: boolean;
   global_typing_detection: boolean;
+  wrong_layout_mode: string;
   clipboard_enabled: boolean;
   max_clipboard_items: number;
   clipboard_preview_length: number;

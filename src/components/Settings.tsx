@@ -512,6 +512,14 @@ export function Settings() {
               <button className={`toggle ${settings.realtime_detection ? "active" : ""}`} onClick={() => updateField("realtime_detection", !settings.realtime_detection)} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+              <label>{t("set.wrongLayoutMode")}</label>
+              <select className="select" value={settings.wrong_layout_mode} onChange={(e) => updateField("wrong_layout_mode", e.target.value)}>
+                <option value="popup">{t("set.wrongLayoutPopup")}</option>
+                <option value="autofix">{t("set.wrongLayoutAutofix")}</option>
+                <option value="off">{t("set.wrongLayoutOff")}</option>
+              </select>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
               <div>
                 <label>{t("set.globalTypingDetection")}</label>
                 <p style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>

@@ -343,30 +343,60 @@ pub fn run() {
 fn setup_tray(app: &mut tauri::App, settings: &AppSettings) -> Result<(), Box<dyn std::error::Error>> {
     let is_hebrew = settings.language == "he";
 
-    let show_label = if is_hebrew { "הצג Brava" } else { "Show Brava" };
-    let clipboard_label = if is_hebrew { "היסטוריית לוח" } else { "Clipboard History" };
-    let convert_label = if is_hebrew { "המר בחירה" } else { "Convert Selection" };
-    let caffeine_label = if is_hebrew { "מצב ערנות" } else { "Caffeine Mode" };
-    let settings_label = if is_hebrew { "הגדרות" } else { "Settings" };
-    let quit_label = if is_hebrew { "צא מ-Brava" } else { "Quit Brava" };
+    // Menu items with accelerator hints in labels
+    let show = MenuItemBuilder::with_id("show",
+        if is_hebrew { "הצג Brava" } else { "Show Brava" }).build(app)?;
+    let clipboard = MenuItemBuilder::with_id("clipboard",
+        if is_hebrew { "היסטוריית לוח           \u{21E7}\u{2318}V" } else { "Clipboard History       \u{21E7}\u{2318}V" }).build(app)?;
+    let convert = MenuItemBuilder::with_id("convert",
+        if is_hebrew { "המר בחירה              \u{21E7}\u{2318}T" } else { "Convert Selection        \u{21E7}\u{2318}T" }).build(app)?;
+    let enhance = MenuItemBuilder::with_id("enhance",
+        if is_hebrew { "שפר פרומפט             \u{21E7}\u{2318}P" } else { "Enhance Prompt         \u{21E7}\u{2318}P" }).build(app)?;
+    let translate = MenuItemBuilder::with_id("translate",
+        if is_hebrew { "תרגום                   \u{21E7}\u{2318}L" } else { "Translate                  \u{21E7}\u{2318}L" }).build(app)?;
+    let screenshot = MenuItemBuilder::with_id("screenshot",
+        if is_hebrew { "צילום מסך              \u{21E7}\u{2318}S" } else { "Screenshot               \u{21E7}\u{2318}S" }).build(app)?;
+    let search = MenuItemBuilder::with_id("search",
+        if is_hebrew { "חיפוש מהיר              \u{2318}K" } else { "Quick Search              \u{2318}K" }).build(app)?;
 
-    let show_item = MenuItemBuilder::with_id("show", show_label).build(app)?;
-    let clipboard_item = MenuItemBuilder::with_id("clipboard", clipboard_label).build(app)?;
-    let convert_item = MenuItemBuilder::with_id("convert", convert_label).build(app)?;
-    let caffeine_item = MenuItemBuilder::with_id("caffeine", caffeine_label).build(app)?;
-    let settings_item = MenuItemBuilder::with_id("settings", settings_label).build(app)?;
-    let quit_item = MenuItemBuilder::with_id("quit", quit_label).build(app)?;
+    // Detection mode
+    let detection_label = match settings.wrong_layout_mode.as_str() {
+        "autofix" => if is_hebrew { "זיהוי פריסה: תיקון אוטומטי" } else { "Detection: Auto-fix" },
+        "popup" => if is_hebrew { "זיהוי פריסה: פופאפ" } else { "Detection: Popup" },
+        _ => if is_hebrew { "זיהוי פריסה: כבוי" } else { "Detection: Off" },
+    };
+    let detection = MenuItemBuilder::with_id("detection", detection_label).build(app)?;
+
+    let caffeine_label = if settings.caffeine_enabled {
+        if is_hebrew { "\u{2615} מצב ערנות (פעיל)" } else { "\u{2615} Caffeine Mode (Active)" }
+    } else {
+        if is_hebrew { "\u{2615} מצב ערנות" } else { "\u{2615} Caffeine Mode" }
+    };
+    let caffeine = MenuItemBuilder::with_id("caffeine", caffeine_label).build(app)?;
+
+    let lock = MenuItemBuilder::with_id("lock",
+        if is_hebrew { "\u{1F512} נעילת מקלדת" } else { "\u{1F512} Keyboard Lock" }).build(app)?;
+    let settings_item = MenuItemBuilder::with_id("settings",
+        if is_hebrew { "\u{2699}\u{FE0F} הגדרות" } else { "\u{2699}\u{FE0F} Settings" }).build(app)?;
+    let quit = MenuItemBuilder::with_id("quit",
+        if is_hebrew { "\u{1F6AA} צא מ-Brava" } else { "\u{1F6AA} Quit Brava" }).build(app)?;
 
     let menu = MenuBuilder::new(app)
-        .item(&show_item)
+        .item(&show)
         .separator()
-        .item(&clipboard_item)
-        .item(&convert_item)
+        .item(&clipboard)
+        .item(&convert)
+        .item(&enhance)
+        .item(&translate)
+        .item(&screenshot)
+        .item(&search)
         .separator()
-        .item(&caffeine_item)
+        .item(&detection)
+        .item(&caffeine)
+        .item(&lock)
         .separator()
         .item(&settings_item)
-        .item(&quit_item)
+        .item(&quit)
         .build()?;
 
     let _tray = TrayIconBuilder::new()
@@ -392,7 +422,13 @@ fn setup_tray(app: &mut tauri::App, settings: &AppSettings) -> Result<(), Box<dy
                 }
                 "clipboard" => show_and_navigate("clipboard"),
                 "convert" => show_and_navigate("converter"),
+                "enhance" => show_and_navigate("ai"),
+                "translate" => show_and_navigate("ai"),
+                "screenshot" => { let _ = app.emit("hotkey-screenshot", ()); }
+                "search" => { let _ = app.emit("hotkey-quick-paste", ()); }
+                "detection" => show_and_navigate("settings"),
                 "caffeine" => { let _ = app.emit("toggle-caffeine", ()); }
+                "lock" => { let _ = app.emit("toggle-keyboard-lock", ()); }
                 "settings" => show_and_navigate("settings"),
                 "quit" => { app.exit(0); }
                 _ => {}
@@ -527,7 +563,7 @@ fn clipboard_monitor(
                                     target_layout: converted.target_layout,
                                     confidence: converted_detected.confidence.max(detected.confidence),
                                 };
-                                let _ = app.emit("wrong-layout-detected", event);
+                                handle_wrong_layout_event(&app, &event);
                                 last_wrong_layout_alert = Instant::now();
                             }
                         }
@@ -561,6 +597,70 @@ struct WrongLayoutDetectedEvent {
     confidence: f64,
 }
 
+fn handle_wrong_layout_event(app: &tauri::AppHandle, event: &WrongLayoutDetectedEvent) {
+    use tauri::Manager;
+
+    let mode = app.try_state::<SettingsState>()
+        .and_then(|s| s.0.lock().ok().map(|st| st.wrong_layout_mode.clone()))
+        .unwrap_or_else(|| "popup".to_string());
+
+    match mode.as_str() {
+        "autofix" => {
+            // Auto-fix: write converted text to clipboard and simulate paste
+            let mut clip = arboard::Clipboard::new().ok();
+            if let Some(ref mut c) = clip {
+                let _ = c.set_text(&event.suggested_text);
+                #[cfg(target_os = "macos")]
+                {
+                    let _ = std::process::Command::new("osascript")
+                        .args(["-e", r#"tell application "System Events" to keystroke "v" using command down"#])
+                        .output();
+                }
+            }
+        }
+        "popup" => {
+            let _ = open_wrong_layout_popup(app, event);
+        }
+        _ => {} // "off" - do nothing
+    }
+}
+
+fn open_wrong_layout_popup(app: &tauri::AppHandle, event: &WrongLayoutDetectedEvent) -> Result<(), String> {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+    use tauri::Manager;
+
+    // Close existing popup if any
+    if let Some(w) = app.get_webview_window("wrong-layout-popup") {
+        let _ = w.close();
+    }
+
+    let params = format!(
+        "index.html?popup=wronglayout&wrong={}&suggested={}&source={}&target={}",
+        urlencoding::encode(&event.wrong_text),
+        urlencoding::encode(&event.suggested_text),
+        urlencoding::encode(&event.source_layout),
+        urlencoding::encode(&event.target_layout),
+    );
+
+    let _window = WebviewWindowBuilder::new(
+        app,
+        "wrong-layout-popup",
+        WebviewUrl::App(params.into()),
+    )
+    .title("")
+    .inner_size(360.0, 120.0)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focused(true)
+    .center()
+    .resizable(false)
+    .build()
+    .map_err(|e| format!("Failed to open popup: {}", e))?;
+
+    Ok(())
+}
+
 fn should_analyze_wrong_layout(text: &str) -> bool {
     let trimmed = text.trim();
     if trimmed.len() < 4 || trimmed.len() > 200 {
@@ -579,7 +679,6 @@ fn should_analyze_wrong_layout(text: &str) -> bool {
 #[cfg(not(target_os = "macos"))]
 fn global_key_monitor(app: tauri::AppHandle) {
     use rdev::{listen, EventType, Key};
-    use tauri::Emitter;
 
     let mut detector = WrongLayoutDetector::new();
     let engine = LayoutEngine::new();
@@ -640,7 +739,7 @@ fn global_key_monitor(app: tauri::AppHandle) {
                             target_layout: converted.target_layout,
                             confidence: converted_detected.confidence.max(detected.confidence),
                         };
-                        let _ = app.emit("wrong-layout-detected", event);
+                        handle_wrong_layout_event(&app, &event);
                         last_alert = Instant::now();
                         detector.clear();
                     }
@@ -660,7 +759,6 @@ fn macos_key_consumer(
     rx: std::sync::mpsc::Receiver<engine::macos_keys::monitor::KeyEvent>,
 ) {
     use engine::macos_keys::monitor::KeyEvent;
-    use tauri::Emitter;
 
     let mut detector = WrongLayoutDetector::new();
     let engine_inst = LayoutEngine::new();
@@ -711,7 +809,7 @@ fn macos_key_consumer(
                             target_layout: converted.target_layout,
                             confidence: converted_detected.confidence.max(detected.confidence),
                         };
-                        let _ = app.emit("wrong-layout-detected", event_data);
+                        handle_wrong_layout_event(&app, &event_data);
                         last_alert = Instant::now();
                         detector.clear();
                     }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard, checkPermissions, type AppSettings, type WrongLayoutAlert } from "./lib/tauri";
+import { convertClipboardText, captureFullScreen, openScreenshotEditor, getSettings, aiFixGrammar, writeSystemClipboard, checkPermissions, type AppSettings } from "./lib/tauri";
 import { showToast } from "./components/Toast";
 import type { TranscriptionJobEvent } from "./lib/tauri";
 import { ClipboardHistory } from "./components/ClipboardHistory";
@@ -29,17 +29,12 @@ function App() {
   const [clipboardBadgeCount, setClipboardBadgeCount] = useState(0);
   const [quickPasteOpen, setQuickPasteOpen] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [wrongLayoutAlert, setWrongLayoutAlert] = useState<WrongLayoutAlert | null>(null);
-  const [lastWrongLayoutTs, setLastWrongLayoutTs] = useState(0);
 
   const activeTabRef = useRef(activeTab);
   const appSettingsRef = useRef(appSettings);
-  const lastWrongLayoutTsRef = useRef(lastWrongLayoutTs);
 
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
   useEffect(() => { appSettingsRef.current = appSettings; }, [appSettings]);
-  useEffect(() => { lastWrongLayoutTsRef.current = lastWrongLayoutTs; }, [lastWrongLayoutTs]);
-
   useEffect(() => {
     initLocale();
     const hasOnboarded = localStorage.getItem("brava_onboarded");
@@ -152,18 +147,6 @@ function App() {
       }
     }));
 
-    unsubs.push(listen<WrongLayoutAlert>("wrong-layout-detected", async (event) => {
-      if (!appSettingsRef.current?.realtime_detection) return;
-      const now = Date.now();
-      if (now - lastWrongLayoutTsRef.current < 8000) return;
-      const alert = event.payload;
-      if (!alert) return;
-      setWrongLayoutAlert(alert);
-      setLastWrongLayoutTs(now);
-      lastWrongLayoutTsRef.current = now;
-      playConvertSound();
-    }));
-
     return () => { unsubs.forEach((u) => u.then((fn) => fn())); };
   }, [navigate, t]);
 
@@ -186,28 +169,6 @@ function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
-
-  useEffect(() => {
-    if (!wrongLayoutAlert) return;
-    const timer = setTimeout(() => setWrongLayoutAlert(null), 4000);
-    const onKey = async (e: KeyboardEvent) => {
-      if (!wrongLayoutAlert) return;
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setWrongLayoutAlert(null);
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        await writeSystemClipboard(wrongLayoutAlert.suggested_text);
-        showToast(t("conv.autoApplied"), "success");
-        setWrongLayoutAlert(null);
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("keydown", onKey, true);
-    };
-  }, [wrongLayoutAlert, t]);
 
   const completeOnboarding = () => {
     localStorage.setItem("brava_onboarded", "true");
@@ -323,36 +284,6 @@ function App() {
       <WhatsNew />
       <KeyboardLock />
       <QuickPaste open={quickPasteOpen} onClose={() => setQuickPasteOpen(false)} />
-      {wrongLayoutAlert && (
-        <div style={{
-          position: "fixed",
-          right: 16,
-          bottom: 16,
-          zIndex: 10001,
-          maxWidth: 420,
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border-primary)",
-          borderRadius: "10px",
-          padding: "12px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-        }}>
-          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>{t("conv.detectedWrongLayout")}</div>
-          <div style={{ fontSize: 13, marginBottom: 6, opacity: 0.85 }}>{wrongLayoutAlert.wrong_text}</div>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{wrongLayoutAlert.suggested_text}</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-sm btn-primary" onClick={async () => {
-              await writeSystemClipboard(wrongLayoutAlert.suggested_text);
-              showToast(t("conv.autoApplied"), "success");
-              setWrongLayoutAlert(null);
-            }}>
-              Enter - {t("conv.applyFix")}
-            </button>
-            <button className="btn btn-sm" onClick={() => setWrongLayoutAlert(null)}>
-              Esc - {t("conv.dismiss")}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
