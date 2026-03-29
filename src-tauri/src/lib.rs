@@ -609,30 +609,40 @@ fn clipboard_monitor(
             let _ = app.emit("clipboard-changed", &item);
 
             if should_analyze_wrong_layout(&item.content) {
+                // Segment text by script and find the largest mismatched segment
+                let segments = segment_by_script(&item.content);
+                let active_kb = get_active_keyboard_id();
+                let mismatched_segment = segments.iter()
+                    .filter(|(_, script)| !script_matches_keyboard(script, &active_kb))
+                    .max_by_key(|(text, _)| text.len());
+
+                let analysis_text = if let Some((seg_text, _)) = mismatched_segment {
+                    if seg_text.chars().count() >= 5 { seg_text.clone() } else { item.content.clone() }
+                } else {
+                    item.content.clone()
+                };
+
                 layout_detector.clear();
-                for ch in item.content.chars().take(120) {
+                for ch in analysis_text.chars().take(120) {
                     layout_detector.push_char(ch);
                 }
                 if layout_detector.analyze().is_some()
                     && last_wrong_layout_alert.elapsed() >= Duration::from_secs(5)
                 {
-                    if let Ok(converted) = layout_engine.auto_convert(&item.content) {
-                        if converted.converted != item.content {
-                            let detected = layout_engine.detect_layout(&item.content);
+                    if let Ok(converted) = layout_engine.auto_convert(&analysis_text) {
+                        if converted.converted != analysis_text {
+                            let detected = layout_engine.detect_layout(&analysis_text);
 
-                            // Check OS keyboard layout — if typed chars match active keyboard, skip
+                            // Check OS keyboard layout -- if typed chars match active keyboard, skip
                             if script_matches_active_keyboard(&detected.detected_code) {
                                 layout_detector.clear();
                             } else {
                             let converted_detected = layout_engine.detect_layout(&converted.converted);
                             let strong_signal = if detected.detected_code == "en" {
-                                // English text -> might be wrong-layout Hebrew
-                                // Only flag if the text does NOT look like real English
-                                !looks_like_real_english(&item.content)
+                                !looks_like_real_english(&analysis_text)
                                     && converted_detected.detected_code != "en"
                                     && converted_detected.confidence >= 0.70
                             } else {
-                                // Non-English text -> might be wrong-layout English
                                 converted_detected.detected_code == "en"
                                     && converted_detected.confidence >= 0.70
                             };
@@ -842,60 +852,54 @@ pub fn looks_like_real_english(text: &str) -> bool {
 
 /// Get the active macOS keyboard layout name (e.g. "U.S.", "Hebrew", "Arabic").
 /// On non-macOS platforms returns "unknown".
+/// Uses native CoreFoundation/Carbon FFI for instant results (no process spawn).
 #[cfg(target_os = "macos")]
 pub fn get_active_keyboard_id() -> String {
-    // Try multiple approaches for robustness
+    use std::os::raw::c_void;
 
-    // Approach 1: Use InputSourceID which is more reliable
-    let output = std::process::Command::new("defaults")
-        .args(["read", "com.apple.HIToolbox", "AppleSelectedInputSources"])
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .unwrap_or_default();
+    type CFStringRef = *const c_void;
+    type CFTypeRef = *const c_void;
+    type TISInputSourceRef = *const c_void;
 
-    // Parse all possible key formats
-    for line in output.lines() {
-        let trimmed = line.trim().trim_end_matches(';');
-
-        // Check for "KeyboardLayout Name" = "Hebrew"
-        if trimmed.contains("KeyboardLayout Name") {
-            if let Some(val) = trimmed.split('=').nth(1) {
-                let name = val.trim().trim_matches('"').trim();
-                if !name.is_empty() {
-                    return name.to_string();
-                }
-            }
-        }
-
-        // Check for "Input Mode" = "com.apple.inputmethod.Hebrew"
-        if trimmed.contains("Input Mode") {
-            if let Some(val) = trimmed.split('=').nth(1) {
-                let mode = val.trim().trim_matches('"').trim();
-                // Extract language from input mode ID
-                if mode.contains("Hebrew") { return "Hebrew".to_string(); }
-                if mode.contains("Arabic") { return "Arabic".to_string(); }
-                if mode.contains("Russian") { return "Russian".to_string(); }
-                if mode.contains("Chinese") { return "Chinese".to_string(); }
-                if mode.contains("Japanese") { return "Japanese".to_string(); }
-                if mode.contains("Korean") { return "Korean".to_string(); }
-                return mode.to_string();
-            }
-        }
-
-        // Check for InputSourceID (most reliable)
-        if trimmed.contains("KeyboardLayout ID") || trimmed.contains("InputSourceID") {
-            if let Some(val) = trimmed.split('=').nth(1) {
-                let id = val.trim().trim_matches('"').trim();
-                if id.contains("Hebrew") { return "Hebrew".to_string(); }
-                if id.contains("Arabic") { return "Arabic".to_string(); }
-                if id.contains("Russian") { return "Russian".to_string(); }
-                if id.contains("US") || id.contains("ABC") || id.contains("British") { return "U.S.".to_string(); }
-            }
-        }
+    extern "C" {
+        fn TISCopyCurrentKeyboardInputSource() -> TISInputSourceRef;
+        fn TISGetInputSourceProperty(source: TISInputSourceRef, key: CFStringRef) -> CFTypeRef;
+        fn CFStringGetCStringPtr(string: CFStringRef, encoding: u32) -> *const i8;
+        fn CFRelease(cf: CFTypeRef);
+        static kTISPropertyInputSourceID: CFStringRef;
     }
 
-    "U.S.".to_string() // Default fallback
+    const K_CF_STRING_ENCODING_UTF8: u32 = 0x08000100;
+
+    unsafe {
+        let source = TISCopyCurrentKeyboardInputSource();
+        if source.is_null() {
+            return "U.S.".to_string();
+        }
+
+        let id_ref = TISGetInputSourceProperty(source, kTISPropertyInputSourceID);
+        if id_ref.is_null() {
+            CFRelease(source);
+            return "U.S.".to_string();
+        }
+
+        let c_str = CFStringGetCStringPtr(id_ref as CFStringRef, K_CF_STRING_ENCODING_UTF8);
+        let result = if !c_str.is_null() {
+            let s = std::ffi::CStr::from_ptr(c_str).to_string_lossy().to_string();
+            // Parse input source ID: "com.apple.keylayout.Hebrew" -> "Hebrew"
+            // Or "com.apple.keylayout.US" -> "U.S."
+            if s.contains("Hebrew") { "Hebrew".to_string() }
+            else if s.contains("Arabic") { "Arabic".to_string() }
+            else if s.contains("Russian") { "Russian".to_string() }
+            else if s.contains("US") || s.contains("ABC") || s.contains("British") || s.contains("Australian") { "U.S.".to_string() }
+            else { s.split('.').last().unwrap_or("U.S.").to_string() }
+        } else {
+            "U.S.".to_string()
+        };
+
+        CFRelease(source);
+        result
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -919,6 +923,59 @@ fn script_matches_active_keyboard(detected_code: &str) -> bool {
         || (detected_code == "en" && active_is_english)
         || (detected_code == "ar" && active_is_arabic)
         || (detected_code == "ru" && active_is_russian)
+}
+
+/// Segment text into contiguous runs of the same Unicode script.
+/// Returns a list of (text, script_code) pairs.
+fn segment_by_script(text: &str) -> Vec<(String, &'static str)> {
+    let mut segments: Vec<(String, &'static str)> = Vec::new();
+    let mut current_text = String::new();
+    let mut current_script: &str = "unknown";
+
+    for c in text.chars() {
+        let script = match c as u32 {
+            0x0590..=0x05FF => "he",
+            0x0600..=0x06FF => "ar",
+            0x0400..=0x04FF => "ru",
+            0x0041..=0x005A | 0x0061..=0x007A => "en",
+            _ => "other", // spaces, digits, punctuation
+        };
+
+        if script == "other" {
+            // Punctuation/space belongs to the current segment
+            current_text.push(c);
+            continue;
+        }
+
+        if script != current_script && current_script != "unknown" && current_script != "other" {
+            // Script changed -- save current segment
+            if !current_text.trim().is_empty() {
+                segments.push((current_text.clone(), current_script));
+            }
+            current_text.clear();
+        }
+
+        current_script = script;
+        current_text.push(c);
+    }
+
+    // Save last segment
+    if !current_text.trim().is_empty() {
+        segments.push((current_text, current_script));
+    }
+
+    segments
+}
+
+/// Returns true when a Unicode script code matches the given keyboard layout name.
+fn script_matches_keyboard(script: &str, keyboard: &str) -> bool {
+    match script {
+        "he" => keyboard.contains("Hebrew"),
+        "ar" => keyboard.contains("Arabic"),
+        "ru" => keyboard.contains("Russian"),
+        "en" => keyboard.contains("U.S.") || keyboard.contains("ABC") || keyboard.contains("British") || keyboard.contains("Australian"),
+        _ => true, // unknown script matches anything
+    }
 }
 
 fn should_analyze_wrong_layout(text: &str) -> bool {
@@ -991,24 +1048,34 @@ fn global_key_monitor(app: tauri::AppHandle) {
             return;
         }
 
-        if detector.analyze().is_some() {
-            if let Ok(converted) = engine.auto_convert(&snapshot) {
-                if converted.converted != snapshot {
-                    let detected = engine.detect_layout(&snapshot);
+        // Segment text by script and find the largest mismatched segment
+        let segments = segment_by_script(&snapshot);
+        let active_kb = get_active_keyboard_id();
+        let mismatched_segment = segments.iter()
+            .filter(|(_, script)| !script_matches_keyboard(script, &active_kb))
+            .max_by_key(|(text, _)| text.len());
 
-                    // Check OS keyboard layout — if typed chars match active keyboard, skip
+        let analysis_text = if let Some((seg_text, _)) = mismatched_segment {
+            if seg_text.chars().count() >= 5 { seg_text.clone() } else { snapshot.clone() }
+        } else {
+            snapshot.clone()
+        };
+
+        if detector.analyze().is_some() {
+            if let Ok(converted) = engine.auto_convert(&analysis_text) {
+                if converted.converted != analysis_text {
+                    let detected = engine.detect_layout(&analysis_text);
+
+                    // Check OS keyboard layout -- if typed chars match active keyboard, skip
                     if script_matches_active_keyboard(&detected.detected_code) {
                         detector.clear();
                     } else {
                     let converted_detected = engine.detect_layout(&converted.converted);
                     let strong_signal = if detected.detected_code == "en" {
-                        // English text -> might be wrong-layout Hebrew
-                        // Only flag if the text does NOT look like real English
-                        !looks_like_real_english(&snapshot)
+                        !looks_like_real_english(&analysis_text)
                             && converted_detected.detected_code != "en"
                             && converted_detected.confidence >= 0.70
                     } else {
-                        // Non-English text -> might be wrong-layout English
                         converted_detected.detected_code == "en"
                             && converted_detected.confidence >= 0.70
                     };
@@ -1076,24 +1143,34 @@ fn macos_key_consumer(
             continue;
         }
 
-        if detector.analyze().is_some() {
-            if let Ok(converted) = engine_inst.auto_convert(&snapshot) {
-                if converted.converted != snapshot {
-                    let detected = engine_inst.detect_layout(&snapshot);
+        // Segment text by script and find the largest mismatched segment
+        let segments = segment_by_script(&snapshot);
+        let active_kb = get_active_keyboard_id();
+        let mismatched_segment = segments.iter()
+            .filter(|(_, script)| !script_matches_keyboard(script, &active_kb))
+            .max_by_key(|(text, _)| text.len());
 
-                    // Check OS keyboard layout — if typed chars match active keyboard, skip
+        let analysis_text = if let Some((seg_text, _)) = mismatched_segment {
+            if seg_text.chars().count() >= 5 { seg_text.clone() } else { snapshot.clone() }
+        } else {
+            snapshot.clone()
+        };
+
+        if detector.analyze().is_some() {
+            if let Ok(converted) = engine_inst.auto_convert(&analysis_text) {
+                if converted.converted != analysis_text {
+                    let detected = engine_inst.detect_layout(&analysis_text);
+
+                    // Check OS keyboard layout -- if typed chars match active keyboard, skip
                     if script_matches_active_keyboard(&detected.detected_code) {
                         detector.clear();
                     } else {
                     let converted_detected = engine_inst.detect_layout(&converted.converted);
                     let strong_signal = if detected.detected_code == "en" {
-                        // English text -> might be wrong-layout Hebrew
-                        // Only flag if the text does NOT look like real English
-                        !looks_like_real_english(&snapshot)
+                        !looks_like_real_english(&analysis_text)
                             && converted_detected.detected_code != "en"
                             && converted_detected.confidence >= 0.70
                     } else {
-                        // Non-English text -> might be wrong-layout English
                         converted_detected.detected_code == "en"
                             && converted_detected.confidence >= 0.70
                     };

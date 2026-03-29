@@ -48,6 +48,9 @@ export function ScreenshotEditor() {
   const [imageReady, setImageReady] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
+  // HiDPI/Retina awareness
+  const dpr = window.devicePixelRatio || 1;
+
   // State
   const [phase, setPhase] = useState<"selecting" | "annotating">("selecting");
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -58,9 +61,11 @@ export function ScreenshotEditor() {
   const [activeColor, setActiveColor] = useState(COLORS[0]);
   const [drawing, setDrawing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const magCanvasRef = useRef<HTMLCanvasElement>(null);
   const [saving, setSaving] = useState(false);
   const [undoStack, setUndoStack] = useState<ImageData[]>([]);
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [fontSize, setFontSize] = useState(16);
   const [textInput, setTextInput] = useState<{x: number; y: number; value: string} | null>(null);
   const [resizing, setResizing] = useState<string | null>(null);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, sel: { x: 0, y: 0, w: 0, h: 0 } });
@@ -132,12 +137,16 @@ export function ScreenshotEditor() {
           const undoEntry = ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
           setUndoStack(prev => {
             const next = [...prev, undoEntry];
-            return next.length > 10 ? next.slice(next.length - 10) : next;
+            return next.length > 8 ? next.slice(next.length - 8) : next;
           });
         }
-        // Then resize canvas
-        canvasRef.current.width = selection.w;
-        canvasRef.current.height = selection.h;
+        // Then resize canvas with DPR scaling
+        canvasRef.current.width = selection.w * dpr;
+        canvasRef.current.height = selection.h * dpr;
+        canvasRef.current.style.width = `${selection.w}px`;
+        canvasRef.current.style.height = `${selection.h}px`;
+        const resizeCtx = canvasRef.current.getContext("2d");
+        if (resizeCtx) resizeCtx.scale(dpr, dpr);
       }
       return;
     }
@@ -145,11 +154,15 @@ export function ScreenshotEditor() {
       setSelecting(false);
       if (selection && selection.w > 10 && selection.h > 10) {
         setPhase("annotating");
-        // Initialize annotation canvas
+        // Initialize annotation canvas with DPR scaling
         setTimeout(() => {
           if (canvasRef.current && selection) {
-            canvasRef.current.width = selection.w;
-            canvasRef.current.height = selection.h;
+            canvasRef.current.width = selection.w * dpr;
+            canvasRef.current.height = selection.h * dpr;
+            canvasRef.current.style.width = `${selection.w}px`;
+            canvasRef.current.style.height = `${selection.h}px`;
+            const ctx = canvasRef.current.getContext("2d");
+            if (ctx) ctx.scale(dpr, dpr);
           }
         }, 50);
       }
@@ -226,10 +239,10 @@ export function ScreenshotEditor() {
     try {
       let annotatedDataUrl: string | undefined;
       if (canvasRef.current) {
-        // Composite: draw the original region + annotations
+        // Composite: draw the original region + annotations at full DPR resolution
         const composite = document.createElement("canvas");
-        composite.width = selection.w;
-        composite.height = selection.h;
+        composite.width = selection.w * dpr;
+        composite.height = selection.h * dpr;
         const cCtx = composite.getContext("2d");
         if (cCtx) {
           // Draw the selected region from the background image
@@ -244,11 +257,11 @@ export function ScreenshotEditor() {
               imageRegion.height,
               0,
               0,
-              selection.w,
-              selection.h,
+              selection.w * dpr,
+              selection.h * dpr,
             );
           }
-          // Draw annotations on top
+          // Draw annotations on top (canvas already at DPR resolution)
           cCtx.drawImage(canvasRef.current, 0, 0);
           annotatedDataUrl = composite.toDataURL("image/png");
         }
@@ -284,8 +297,8 @@ export function ScreenshotEditor() {
         let annotatedDataUrl: string | undefined;
         if (canvasRef.current) {
           const composite = document.createElement("canvas");
-          composite.width = selection.w;
-          composite.height = selection.h;
+          composite.width = selection.w * dpr;
+          composite.height = selection.h * dpr;
           const cCtx = composite.getContext("2d");
           if (cCtx) {
             const bgImg = document.querySelector("#screenshot-bg") as HTMLImageElement;
@@ -299,8 +312,8 @@ export function ScreenshotEditor() {
                 imageRegion.height,
                 0,
                 0,
-                selection.w,
-                selection.h,
+                selection.w * dpr,
+                selection.h * dpr,
               );
             }
             cCtx.drawImage(canvasRef.current, 0, 0);
@@ -320,8 +333,8 @@ export function ScreenshotEditor() {
     if (!selection) return;
     // Quick copy without saving
     const composite = document.createElement("canvas");
-    composite.width = selection.w;
-    composite.height = selection.h;
+    composite.width = selection.w * dpr;
+    composite.height = selection.h * dpr;
     const cCtx = composite.getContext("2d");
     if (cCtx) {
       const bgImg = document.querySelector("#screenshot-bg") as HTMLImageElement;
@@ -335,8 +348,8 @@ export function ScreenshotEditor() {
           imageRegion.height,
           0,
           0,
-          selection.w,
-          selection.h,
+          selection.w * dpr,
+          selection.h * dpr,
         );
       }
       if (canvasRef.current) {
@@ -358,6 +371,26 @@ export function ScreenshotEditor() {
       await copyScreenshotToClipboard(savedPath);
     }
   };
+
+  // Canvas-based magnifier drawing
+  useEffect(() => {
+    if (phase !== "selecting" || !magCanvasRef.current) return;
+    const bgImg = document.querySelector("#screenshot-bg") as HTMLImageElement;
+    if (!bgImg || !bgImg.complete) return;
+
+    const canvas = magCanvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Draw a 30x30 pixel region from the source image, scaled to 120x120
+    const zoom = 4;
+    const srcSize = 120 / zoom; // 30px source region
+    const srcX = (mousePos.x / window.innerWidth) * bgImg.naturalWidth - srcSize / 2;
+    const srcY = (mousePos.y / window.innerHeight) * bgImg.naturalHeight - srcSize / 2;
+
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bgImg, srcX, srcY, srcSize, srcSize, 0, 0, 120, 120);
+  }, [mousePos, phase]);
 
   // Escape to cancel, Ctrl/Cmd+Z to undo, tool shortcuts
   useEffect(() => {
@@ -461,41 +494,29 @@ export function ScreenshotEditor() {
         </>
       )}
 
-      {/* Magnifier */}
+      {/* Magnifier (canvas-based for performance) */}
       {imageReady && phase === "selecting" && (() => {
-        const magX = mousePos.x + 120 > window.innerWidth ? mousePos.x - 120 : mousePos.x + 20;
-        const magY = mousePos.y + 120 > window.innerHeight ? mousePos.y - 120 : mousePos.y + 20;
+        const magX = mousePos.x + 140 > window.innerWidth ? mousePos.x - 140 : mousePos.x + 20;
+        const magY = mousePos.y + 140 > window.innerHeight ? mousePos.y - 140 : mousePos.y + 20;
         return (
         <div style={{
           position: "absolute",
           left: magX,
           top: magY,
-          width: 100,
-          height: 100,
+          width: 120,
+          height: 120,
           border: "2px solid rgba(191,70,70,0.8)",
-          borderRadius: 4,
+          borderRadius: 6,
           overflow: "hidden",
           pointerEvents: "none",
           zIndex: 25,
           boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+          background: "#000",
         }}>
-          <img
-            src={imageUrl}
-            alt=""
-            style={{
-              position: "absolute",
-              width: `${window.innerWidth * 4}px`,
-              height: `${window.innerHeight * 4}px`,
-              left: -(mousePos.x * 4) + 50,
-              top: -(mousePos.y * 4) + 50,
-              imageRendering: "pixelated",
-              pointerEvents: "none",
-            }}
-            draggable={false}
-          />
+          <canvas ref={magCanvasRef} width={120} height={120} style={{ width: 120, height: 120 }} />
           {/* Crosshair in magnifier */}
-          <div style={{ position: "absolute", left: 49, top: 0, width: 1, height: 100, background: "rgba(191,70,70,0.5)" }} />
-          <div style={{ position: "absolute", top: 49, left: 0, height: 1, width: 100, background: "rgba(191,70,70,0.5)" }} />
+          <div style={{ position: "absolute", left: 59, top: 0, width: 1, height: 120, background: "rgba(191,70,70,0.5)" }} />
+          <div style={{ position: "absolute", top: 59, left: 0, height: 1, width: 120, background: "rgba(191,70,70,0.5)" }} />
           {/* Pixel coordinates */}
           <div style={{ position: "absolute", bottom: 2, left: 4, right: 4, fontSize: 9, color: "rgba(255,255,255,0.6)", textAlign: "center" }}>
             {mousePos.x}, {mousePos.y}
@@ -591,7 +612,7 @@ export function ScreenshotEditor() {
           zIndex: 20,
           pointerEvents: "none",
         }}>
-          {selection.w} x {selection.h}
+          {Math.round(selection.w * dpr)} x {Math.round(selection.h * dpr)}
         </div>
       )}
 
@@ -618,7 +639,7 @@ export function ScreenshotEditor() {
                 const entry = ctx2.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
                 setUndoStack(prev => {
                   const next = [...prev, entry];
-                  return next.length > 10 ? next.slice(next.length - 10) : next;
+                  return next.length > 8 ? next.slice(next.length - 8) : next;
                 });
               }
             }
@@ -732,7 +753,7 @@ export function ScreenshotEditor() {
             if (e.key === "Enter" && textInput.value && canvasRef.current) {
               const ctx = canvasRef.current.getContext("2d");
               if (ctx) {
-                ctx.font = "16px 'DM Sans', sans-serif";
+                ctx.font = `${fontSize}px 'DM Sans', sans-serif`;
                 ctx.fillStyle = activeColor;
                 ctx.fillText(textInput.value, textInput.x - selection.x, textInput.y - selection.y);
               }
@@ -744,7 +765,7 @@ export function ScreenshotEditor() {
             if (textInput.value && canvasRef.current && selection) {
               const ctx = canvasRef.current.getContext("2d");
               if (ctx) {
-                ctx.font = "16px 'DM Sans', sans-serif";
+                ctx.font = `${fontSize}px 'DM Sans', sans-serif`;
                 ctx.fillStyle = activeColor;
                 ctx.fillText(textInput.value, textInput.x - selection.x, textInput.y - selection.y);
               }
@@ -759,7 +780,7 @@ export function ScreenshotEditor() {
             background: "transparent",
             border: "1px dashed " + activeColor,
             color: activeColor,
-            fontSize: 16,
+            fontSize: fontSize,
             fontFamily: "'DM Sans', sans-serif",
             outline: "none",
             padding: "2px 4px",
@@ -833,6 +854,19 @@ export function ScreenshotEditor() {
           <span style={{ color: "#aaa", fontSize: 11, minWidth: 20, textAlign: "center" }}>{strokeWidth}</span>
           <button onClick={(e) => { e.stopPropagation(); setStrokeWidth(w => Math.min(20, w + 1)); }}
             style={{ padding: "5px 8px", borderRadius: 5, border: "none", background: "transparent", color: "#aaa", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center" }}>+</button>
+
+          {/* Font size controls (text tool) */}
+          {activeTool === "text" && (
+            <>
+              <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.15)", margin: "0 4px" }} />
+              <span style={{ color: "#888", fontSize: 10 }}>Font</span>
+              <button onClick={(e) => { e.stopPropagation(); setFontSize(s => Math.max(8, s - 2)); }}
+                style={{ padding: "5px 8px", borderRadius: 5, border: "none", background: "transparent", color: "#aaa", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center" }}>-</button>
+              <span style={{ color: "#aaa", fontSize: 11, minWidth: 20, textAlign: "center" }}>{fontSize}</span>
+              <button onClick={(e) => { e.stopPropagation(); setFontSize(s => Math.min(72, s + 2)); }}
+                style={{ padding: "5px 8px", borderRadius: 5, border: "none", background: "transparent", color: "#aaa", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center" }}>+</button>
+            </>
+          )}
 
           {/* Separator */}
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.15)", margin: "0 4px" }} />
