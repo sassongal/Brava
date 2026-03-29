@@ -710,7 +710,12 @@ fn handle_wrong_layout_event(app: &tauri::AppHandle, event: &WrongLayoutDetected
             let _ = app.emit("toast", format!("Layout corrected, paste to apply ({} \u{2192} {})", event.source_layout, event.target_layout));
         }
         "popup" => {
-            let _ = open_wrong_layout_popup(app, event);
+            // Window creation must happen on main thread (macOS requirement)
+            let app_clone = app.clone();
+            let event_clone = event.clone();
+            let _ = app.run_on_main_thread(move || {
+                let _ = open_wrong_layout_popup(&app_clone, &event_clone);
+            });
         }
         _ => {} // "off" - do nothing
     }
