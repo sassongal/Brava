@@ -242,6 +242,9 @@ export const cancelScreenshot = (sourcePath?: string) =>
 export const copyScreenshotToClipboard = (imagePath: string) =>
   invoke<void>("copy_screenshot_to_clipboard", { imagePath });
 
+export const saveDataUrlToPath = (dataUrl: string, destPath: string) =>
+  invoke<void>("save_data_url_to_path", { dataUrl, destPath });
+
 // Transcription
 export interface TranscriptionResult {
   text: string;

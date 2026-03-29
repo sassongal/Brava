@@ -328,6 +328,7 @@ pub fn run() {
             commands::screenshot::save_screenshot_region,
             commands::screenshot::cancel_screenshot,
             commands::screenshot::copy_screenshot_to_clipboard,
+            commands::screenshot::save_data_url_to_path,
             // Transcription commands
             commands::transcription::transcribe_media,
             commands::transcription::enqueue_transcription,
@@ -536,6 +537,7 @@ fn clipboard_monitor(
     let mut last_wrong_layout_alert = Instant::now()
         .checked_sub(Duration::from_secs(30))
         .unwrap_or_else(Instant::now);
+    let mut last_suggested = String::new();
 
     loop {
         std::thread::sleep(Duration::from_millis(500));
@@ -642,8 +644,11 @@ fn clipboard_monitor(
                                     target_layout: converted.target_layout,
                                     confidence: converted_detected.confidence.max(detected.confidence),
                                 };
-                                handle_wrong_layout_event(&app, &event);
-                                last_wrong_layout_alert = Instant::now();
+                                if event.suggested_text != last_suggested {
+                                    handle_wrong_layout_event(&app, &event);
+                                    last_suggested = event.suggested_text.clone();
+                                    last_wrong_layout_alert = Instant::now();
+                                }
                             }
                             } // end else (script does not match keyboard)
                         }
@@ -765,11 +770,6 @@ pub fn looks_like_real_english(text: &str) -> bool {
     let vowels = chars.iter().filter(|&&c| "aeiou".contains(c)).count();
     let vowel_ratio = vowels as f64 / chars.len() as f64;
 
-    // Real English: 20-60% vowels. Wrong-layout: typically < 15%
-    if vowel_ratio >= 0.15 {
-        return true; // Has enough vowels to be real English
-    }
-
     // Check 2: Common English bigrams present
     let common_bigrams = ["th", "he", "in", "er", "an", "re", "on", "at", "en", "nd",
                           "ti", "es", "or", "te", "of", "ed", "is", "it", "al", "ar",
@@ -779,9 +779,22 @@ pub fn looks_like_real_english(text: &str) -> bool {
         .filter(|&&bg| text_lower.contains(bg))
         .count();
 
-    // If text has 2+ common English bigrams, it's likely real English
-    if bigram_count >= 2 {
-        return true;
+    // For very short text (<=5 chars), require BOTH vowel ratio AND at least one common bigram
+    if chars.len() <= 5 {
+        if vowel_ratio >= 0.15 && bigram_count >= 1 {
+            return true;
+        }
+        // Fall through to dictionary check below
+    } else {
+        // For longer text, vowel ratio alone is sufficient
+        if vowel_ratio >= 0.15 {
+            return true;
+        }
+
+        // If text has 2+ common English bigrams, it's likely real English
+        if bigram_count >= 2 {
+            return true;
+        }
     }
 
     // Check 3: Common short English words (exact match for short text)
@@ -813,6 +826,17 @@ pub fn looks_like_real_english(text: &str) -> bool {
         }
     }
 
+    // Check 4: Common transliterations (Hebrew/Arabic words written in Latin)
+    let transliterations = [
+        "shalom", "toda", "yalla", "sababa", "habibi", "beseder", "boker", "tov",
+        "layla", "ahlan", "ken", "lo", "nachon", "rega", "slicha", "bevakasha",
+        "mah", "nishma", "kol", "echad", "masheu", "mamash", "stam", "achi",
+    ];
+    let words: Vec<&str> = lower.split_whitespace().collect();
+    if words.iter().any(|w| transliterations.contains(&w.as_ref())) {
+        return true;
+    }
+
     false
 }
 
@@ -820,26 +844,58 @@ pub fn looks_like_real_english(text: &str) -> bool {
 /// On non-macOS platforms returns "unknown".
 #[cfg(target_os = "macos")]
 pub fn get_active_keyboard_id() -> String {
-    std::process::Command::new("defaults")
+    // Try multiple approaches for robustness
+
+    // Approach 1: Use InputSourceID which is more reliable
+    let output = std::process::Command::new("defaults")
         .args(["read", "com.apple.HIToolbox", "AppleSelectedInputSources"])
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .and_then(|s| {
-            for line in s.lines() {
-                let trimmed = line.trim();
-                if trimmed.contains("KeyboardLayout Name") {
-                    return Some(
-                        trimmed
-                            .replace("\"KeyboardLayout Name\" = ", "")
-                            .trim_matches(|c: char| c == '"' || c == ';' || c == ' ')
-                            .to_string(),
-                    );
+        .unwrap_or_default();
+
+    // Parse all possible key formats
+    for line in output.lines() {
+        let trimmed = line.trim().trim_end_matches(';');
+
+        // Check for "KeyboardLayout Name" = "Hebrew"
+        if trimmed.contains("KeyboardLayout Name") {
+            if let Some(val) = trimmed.split('=').nth(1) {
+                let name = val.trim().trim_matches('"').trim();
+                if !name.is_empty() {
+                    return name.to_string();
                 }
             }
-            None
-        })
-        .unwrap_or_else(|| "U.S.".to_string())
+        }
+
+        // Check for "Input Mode" = "com.apple.inputmethod.Hebrew"
+        if trimmed.contains("Input Mode") {
+            if let Some(val) = trimmed.split('=').nth(1) {
+                let mode = val.trim().trim_matches('"').trim();
+                // Extract language from input mode ID
+                if mode.contains("Hebrew") { return "Hebrew".to_string(); }
+                if mode.contains("Arabic") { return "Arabic".to_string(); }
+                if mode.contains("Russian") { return "Russian".to_string(); }
+                if mode.contains("Chinese") { return "Chinese".to_string(); }
+                if mode.contains("Japanese") { return "Japanese".to_string(); }
+                if mode.contains("Korean") { return "Korean".to_string(); }
+                return mode.to_string();
+            }
+        }
+
+        // Check for InputSourceID (most reliable)
+        if trimmed.contains("KeyboardLayout ID") || trimmed.contains("InputSourceID") {
+            if let Some(val) = trimmed.split('=').nth(1) {
+                let id = val.trim().trim_matches('"').trim();
+                if id.contains("Hebrew") { return "Hebrew".to_string(); }
+                if id.contains("Arabic") { return "Arabic".to_string(); }
+                if id.contains("Russian") { return "Russian".to_string(); }
+                if id.contains("US") || id.contains("ABC") || id.contains("British") { return "U.S.".to_string(); }
+            }
+        }
+    }
+
+    "U.S.".to_string() // Default fallback
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -873,11 +929,20 @@ fn should_analyze_wrong_layout(text: &str) -> bool {
     }
     let lower = trimmed.to_lowercase();
     let blacklist = [
-        "http://", "https://", "www.", "@", ".com", ".io", ".dev", ".org", "npm ", "cargo ", "git ",
+        "http://", "https://", "www.", "@", ".com", ".io", ".dev", ".org",
+        "npm ", "cargo ", "git ", "sudo ", "brew ",
+        // Phone/IP patterns
+        "://", "192.168", "127.0", "localhost",
     ];
     if blacklist.iter().any(|token| lower.contains(token)) {
         return false;
     }
+
+    // Also reject if text looks like a number/phone
+    if lower.chars().filter(|c| c.is_ascii_digit()).count() > lower.len() / 2 {
+        return false; // More than half digits = probably a number/phone
+    }
+
     true
 }
 
@@ -890,6 +955,7 @@ fn global_key_monitor(app: tauri::AppHandle) {
     let mut last_alert = Instant::now()
         .checked_sub(Duration::from_secs(30))
         .unwrap_or_else(Instant::now);
+    let mut last_suggested = String::new();
 
     let callback = move |event: rdev::Event| {
         let realtime_enabled = app
@@ -954,9 +1020,12 @@ fn global_key_monitor(app: tauri::AppHandle) {
                             target_layout: converted.target_layout,
                             confidence: converted_detected.confidence.max(detected.confidence),
                         };
-                        handle_wrong_layout_event(&app, &event);
-                        last_alert = Instant::now();
-                        detector.clear();
+                        if event.suggested_text != last_suggested {
+                            handle_wrong_layout_event(&app, &event);
+                            last_suggested = event.suggested_text.clone();
+                            last_alert = Instant::now();
+                            detector.clear();
+                        }
                     }
                     } // end else (script does not match keyboard)
                 }
@@ -981,6 +1050,7 @@ fn macos_key_consumer(
     let mut last_alert = Instant::now()
         .checked_sub(Duration::from_secs(30))
         .unwrap_or_else(Instant::now);
+    let mut last_suggested = String::new();
 
     while let Ok(event) = rx.recv() {
         // Check if realtime detection is still enabled
@@ -1035,9 +1105,12 @@ fn macos_key_consumer(
                             target_layout: converted.target_layout,
                             confidence: converted_detected.confidence.max(detected.confidence),
                         };
-                        handle_wrong_layout_event(&app, &event_data);
-                        last_alert = Instant::now();
-                        detector.clear();
+                        if event_data.suggested_text != last_suggested {
+                            handle_wrong_layout_event(&app, &event_data);
+                            last_suggested = event_data.suggested_text.clone();
+                            last_alert = Instant::now();
+                            detector.clear();
+                        }
                     }
                     } // end else (script does not match keyboard)
                 }

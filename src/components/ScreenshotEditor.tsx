@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { saveScreenshotRegion, cancelScreenshot, copyScreenshotToClipboard } from "../lib/tauri";
+import { saveScreenshotRegion, cancelScreenshot, copyScreenshotToClipboard, saveDataUrlToPath } from "../lib/tauri";
 import { useLocale } from "../lib/i18n";
 
 type Tool = "select" | "arrow" | "rect" | "circle" | "draw" | "highlight" | "blur" | "text";
@@ -60,6 +60,8 @@ export function ScreenshotEditor() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [saving, setSaving] = useState(false);
   const [undoStack, setUndoStack] = useState<ImageData[]>([]);
+  const [strokeWidth, setStrokeWidth] = useState(2);
+  const [textInput, setTextInput] = useState<{x: number; y: number; value: string} | null>(null);
   const [resizing, setResizing] = useState<string | null>(null);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, sel: { x: 0, y: 0, w: 0, h: 0 } });
 
@@ -114,7 +116,7 @@ export function ScreenshotEditor() {
       ctx.beginPath();
       ctx.moveTo(rx, ry);
       ctx.strokeStyle = activeColor;
-      ctx.lineWidth = activeTool === "draw" ? 3 : 2;
+      ctx.lineWidth = activeTool === "draw" ? strokeWidth + 1 : strokeWidth;
       ctx.lineCap = "round";
     }
   }, [phase, selection, activeColor, activeTool]);
@@ -196,9 +198,6 @@ export function ScreenshotEditor() {
       const ry = e.clientY - selection.y;
       ctx.lineTo(rx, ry);
       ctx.stroke();
-      if (activeTool === "highlight") {
-        ctx.globalAlpha = 1.0;
-      }
     }
   }, [drawing, selection, activeTool]);
 
@@ -219,22 +218,6 @@ export function ScreenshotEditor() {
       }
     }
   }, [undoStack]);
-
-  // Escape to cancel, Ctrl/Cmd+Z to undo
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
-        e.preventDefault();
-        handleUndo();
-        return;
-      }
-      if (e.key === "Escape") {
-        cancelScreenshot(imagePath);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [imagePath, handleUndo]);
 
   // Save handler
   const handleSave = async () => {
@@ -289,6 +272,50 @@ export function ScreenshotEditor() {
     setSaving(false);
   };
 
+  const handleSaveAs = async () => {
+    if (!selection) return;
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const path = await save({
+        filters: [{ name: "PNG Image", extensions: ["png"] }],
+        defaultPath: `screenshot_${Date.now()}.png`,
+      });
+      if (path) {
+        let annotatedDataUrl: string | undefined;
+        if (canvasRef.current) {
+          const composite = document.createElement("canvas");
+          composite.width = selection.w;
+          composite.height = selection.h;
+          const cCtx = composite.getContext("2d");
+          if (cCtx) {
+            const bgImg = document.querySelector("#screenshot-bg") as HTMLImageElement;
+            if (bgImg) {
+              const imageRegion = mapSelectionToImageRegion(selection, bgImg);
+              cCtx.drawImage(
+                bgImg,
+                imageRegion.x,
+                imageRegion.y,
+                imageRegion.width,
+                imageRegion.height,
+                0,
+                0,
+                selection.w,
+                selection.h,
+              );
+            }
+            cCtx.drawImage(canvasRef.current, 0, 0);
+            annotatedDataUrl = composite.toDataURL("image/png");
+          }
+        }
+        if (annotatedDataUrl) {
+          await saveDataUrlToPath(annotatedDataUrl, path);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to save screenshot as:", err);
+    }
+  };
+
   const handleCopy = async () => {
     if (!selection) return;
     // Quick copy without saving
@@ -331,6 +358,39 @@ export function ScreenshotEditor() {
       await copyScreenshotToClipboard(savedPath);
     }
   };
+
+  // Escape to cancel, Ctrl/Cmd+Z to undo, tool shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+      if (e.key === "Escape") {
+        if (textInput) {
+          setTextInput(null);
+          return;
+        }
+        cancelScreenshot(imagePath);
+        return;
+      }
+      if (textInput) return; // Don't handle shortcuts when typing text
+      if (phase !== "annotating") return;
+      switch(e.key) {
+        case "1": setActiveTool("arrow"); break;
+        case "2": setActiveTool("rect"); break;
+        case "3": setActiveTool("circle"); break;
+        case "4": setActiveTool("highlight"); break;
+        case "5": setActiveTool("blur"); break;
+        case "6": setActiveTool("draw"); break;
+        case "7": setActiveTool("text"); break;
+        case "Enter": handleSave(); break;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [imagePath, handleUndo, phase, textInput, handleSave]);
 
   return (
     <div
@@ -402,11 +462,14 @@ export function ScreenshotEditor() {
       )}
 
       {/* Magnifier */}
-      {imageReady && phase === "selecting" && (
+      {imageReady && phase === "selecting" && (() => {
+        const magX = mousePos.x + 120 > window.innerWidth ? mousePos.x - 120 : mousePos.x + 20;
+        const magY = mousePos.y + 120 > window.innerHeight ? mousePos.y - 120 : mousePos.y + 20;
+        return (
         <div style={{
           position: "absolute",
-          left: mousePos.x + 20,
-          top: mousePos.y + 20,
+          left: magX,
+          top: magY,
           width: 100,
           height: 100,
           border: "2px solid rgba(191,70,70,0.8)",
@@ -433,8 +496,13 @@ export function ScreenshotEditor() {
           {/* Crosshair in magnifier */}
           <div style={{ position: "absolute", left: 49, top: 0, width: 1, height: 100, background: "rgba(191,70,70,0.5)" }} />
           <div style={{ position: "absolute", top: 49, left: 0, height: 1, width: 100, background: "rgba(191,70,70,0.5)" }} />
+          {/* Pixel coordinates */}
+          <div style={{ position: "absolute", bottom: 2, left: 4, right: 4, fontSize: 9, color: "rgba(255,255,255,0.6)", textAlign: "center" }}>
+            {mousePos.x}, {mousePos.y}
+          </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Selection rectangle */}
       {imageReady && selection && (
@@ -543,6 +611,21 @@ export function ScreenshotEditor() {
           onMouseMove={handleCanvasMouseMove}
           onMouseDown={(e) => {
             e.stopPropagation();
+            // Save undo state BEFORE annotation
+            if (canvasRef.current && (activeTool !== "select")) {
+              const ctx2 = canvasRef.current.getContext("2d");
+              if (ctx2) {
+                const entry = ctx2.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
+                setUndoStack(prev => {
+                  const next = [...prev, entry];
+                  return next.length > 10 ? next.slice(next.length - 10) : next;
+                });
+              }
+            }
+            if (activeTool === "text") {
+              setTextInput({ x: e.clientX, y: e.clientY, value: "" });
+              return; // Don't start drawing
+            }
             setDrawing(true);
             setStartPos({ x: e.clientX, y: e.clientY });
             if ((activeTool === "draw" || activeTool === "highlight") && canvasRef.current) {
@@ -554,25 +637,12 @@ export function ScreenshotEditor() {
                 ctx.moveTo(rx, ry);
                 ctx.strokeStyle = activeColor;
                 if (activeTool === "highlight") {
-                  ctx.lineWidth = 20;
+                  ctx.lineWidth = strokeWidth * 10;
                   ctx.globalAlpha = 0.3;
                 } else {
-                  ctx.lineWidth = 3;
+                  ctx.lineWidth = strokeWidth + 1;
                 }
                 ctx.lineCap = "round";
-              }
-            }
-            if (activeTool === "text") {
-              const text = prompt(t("ss.enterText"));
-              if (text && canvasRef.current) {
-                const ctx = canvasRef.current.getContext("2d");
-                if (ctx) {
-                  const rx = e.clientX - selection.x;
-                  const ry = e.clientY - selection.y;
-                  ctx.font = "16px 'DM Sans', sans-serif";
-                  ctx.fillStyle = activeColor;
-                  ctx.fillText(text, rx, ry);
-                }
               }
             }
           }}
@@ -588,7 +658,7 @@ export function ScreenshotEditor() {
 
               if (activeTool === "arrow") {
                 ctx.strokeStyle = activeColor;
-                ctx.lineWidth = 2;
+                ctx.lineWidth = strokeWidth;
                 ctx.beginPath();
                 ctx.moveTo(sx, sy);
                 ctx.lineTo(rx, ry);
@@ -604,11 +674,11 @@ export function ScreenshotEditor() {
                 ctx.stroke();
               } else if (activeTool === "rect") {
                 ctx.strokeStyle = activeColor;
-                ctx.lineWidth = 2;
+                ctx.lineWidth = strokeWidth;
                 ctx.strokeRect(sx, sy, rx - sx, ry - sy);
               } else if (activeTool === "circle") {
                 ctx.strokeStyle = activeColor;
-                ctx.lineWidth = 2;
+                ctx.lineWidth = strokeWidth;
                 const ccx = (sx + rx) / 2;
                 const ccy = (sy + ry) / 2;
                 const radiusX = Math.abs(rx - sx) / 2;
@@ -641,18 +711,59 @@ export function ScreenshotEditor() {
                 }
               }
 
-              // Save undo state
-              if (canvasRef.current) {
+              // Reset globalAlpha after highlight stroke
+              if (activeTool === "highlight") {
                 const ctx2 = canvasRef.current.getContext("2d");
-                if (ctx2) {
-                  setUndoStack(prev => {
-                    const next = [...prev, ctx2.getImageData(0, 0, canvasRef.current!.width, canvasRef.current!.height)];
-                    return next.length > 10 ? next.slice(next.length - 10) : next;
-                  });
-                }
+                if (ctx2) ctx2.globalAlpha = 1.0;
               }
             }
             setDrawing(false);
+          }}
+        />
+      )}
+
+      {/* Inline text input */}
+      {textInput && selection && (
+        <input
+          autoFocus
+          value={textInput.value}
+          onChange={(e) => setTextInput({...textInput, value: e.target.value})}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && textInput.value && canvasRef.current) {
+              const ctx = canvasRef.current.getContext("2d");
+              if (ctx) {
+                ctx.font = "16px 'DM Sans', sans-serif";
+                ctx.fillStyle = activeColor;
+                ctx.fillText(textInput.value, textInput.x - selection.x, textInput.y - selection.y);
+              }
+              setTextInput(null);
+            }
+            if (e.key === "Escape") setTextInput(null);
+          }}
+          onBlur={() => {
+            if (textInput.value && canvasRef.current && selection) {
+              const ctx = canvasRef.current.getContext("2d");
+              if (ctx) {
+                ctx.font = "16px 'DM Sans', sans-serif";
+                ctx.fillStyle = activeColor;
+                ctx.fillText(textInput.value, textInput.x - selection.x, textInput.y - selection.y);
+              }
+            }
+            setTextInput(null);
+          }}
+          style={{
+            position: "absolute",
+            left: textInput.x,
+            top: textInput.y - 10,
+            zIndex: 50,
+            background: "transparent",
+            border: "1px dashed " + activeColor,
+            color: activeColor,
+            fontSize: 16,
+            fontFamily: "'DM Sans', sans-serif",
+            outline: "none",
+            padding: "2px 4px",
+            minWidth: 100,
           }}
         />
       )}
@@ -716,6 +827,13 @@ export function ScreenshotEditor() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 10h10a5 5 0 015 5v0a5 5 0 01-5 5H8"/><path d="M3 10l4-4M3 10l4 4"/></svg>
           </button>
 
+          {/* Stroke width */}
+          <button onClick={(e) => { e.stopPropagation(); setStrokeWidth(w => Math.max(1, w - 1)); }}
+            style={{ padding: "5px 8px", borderRadius: 5, border: "none", background: "transparent", color: "#aaa", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center" }}>-</button>
+          <span style={{ color: "#aaa", fontSize: 11, minWidth: 20, textAlign: "center" }}>{strokeWidth}</span>
+          <button onClick={(e) => { e.stopPropagation(); setStrokeWidth(w => Math.min(20, w + 1)); }}
+            style={{ padding: "5px 8px", borderRadius: 5, border: "none", background: "transparent", color: "#aaa", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center" }}>+</button>
+
           {/* Separator */}
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.15)", margin: "0 4px" }} />
 
@@ -745,6 +863,9 @@ export function ScreenshotEditor() {
           </button>
           <button onClick={(e) => { e.stopPropagation(); handleSave(); }} disabled={saving} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: "#BF4646", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
             {saving ? "..." : t("common.save")}
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); handleSaveAs(); }} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: "rgba(255,255,255,0.1)", color: "#ccc", fontSize: 12, cursor: "pointer" }}>
+            Save As...
           </button>
           <button onClick={(e) => { e.stopPropagation(); cancelScreenshot(imagePath); }} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: "rgba(255,255,255,0.1)", color: "#aaa", fontSize: 12, cursor: "pointer" }}>
             {t("common.cancel")}

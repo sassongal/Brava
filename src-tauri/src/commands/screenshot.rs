@@ -263,6 +263,27 @@ pub fn copy_screenshot_to_clipboard(
         .map_err(|e| format!("Failed to write image to clipboard: {}", e))
 }
 
+/// Save a data URL (base64 PNG) to an arbitrary path chosen by the user
+#[tauri::command]
+pub async fn save_data_url_to_path(
+    data_url: String,
+    dest_path: String,
+) -> Result<(), String> {
+    if data_url.len() > 30_000_000 {
+        return Err("Image data is too large".to_string());
+    }
+    let base64_data = data_url
+        .strip_prefix("data:image/png;base64,")
+        .ok_or("Invalid data URL format")?;
+    let bytes = base64_decode(base64_data)?;
+    if bytes.len() > 20_000_000 {
+        return Err("PNG exceeds size limit".to_string());
+    }
+    std::fs::write(&dest_path, bytes)
+        .map_err(|e| format!("Failed to save file: {}", e))?;
+    Ok(())
+}
+
 fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD

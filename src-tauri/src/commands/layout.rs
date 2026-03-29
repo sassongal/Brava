@@ -44,19 +44,29 @@ pub fn convert_clipboard_text(
     let mut clipboard = arboard::Clipboard::new()
         .map_err(|e| format!("Failed to access clipboard: {}", e))?;
 
-    // Step 1: Mark that we're about to use the clipboard — monitor should skip
+    // Step 1: Save current clipboard to detect change
+    let old_text = clipboard.get_text().unwrap_or_default();
+
+    // Mark that we're about to use the clipboard — monitor should skip
     clipboard_state.0.set_skip("__brava_converting__");
 
-    // Simulate Cmd+C to copy selected text
+    // Step 2: Simulate Cmd+C
     simulate_copy();
-    // Brief pause to let the OS process the copy
-    std::thread::sleep(std::time::Duration::from_millis(150));
 
-    // Step 2: Read the clipboard (now contains the selected text)
-    let text = clipboard.get_text()
-        .map_err(|e| format!("Failed to read clipboard: {}", e))?;
+    // Step 3: Poll clipboard for up to 500ms waiting for it to change
+    let mut text = old_text.clone();
+    let start = std::time::Instant::now();
+    while start.elapsed() < std::time::Duration::from_millis(500) {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        if let Ok(current) = clipboard.get_text() {
+            if current != old_text && !current.trim().is_empty() {
+                text = current;
+                break;
+            }
+        }
+    }
 
-    if text.trim().is_empty() {
+    if text == old_text || text.trim().is_empty() {
         return Err("No text selected. Select text first, then press the hotkey.".to_string());
     }
 
@@ -142,7 +152,7 @@ pub fn detect_wrong_layout_alert(
     state: State<'_, LayoutState>,
 ) -> Option<WrongLayoutAlert> {
     let trimmed = text.trim();
-    if trimmed.chars().count() < 6 || trimmed.chars().count() > 200 {
+    if trimmed.chars().count() < 5 || trimmed.chars().count() > 200 {
         return None;
     }
 
