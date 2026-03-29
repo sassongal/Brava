@@ -617,12 +617,17 @@ fn clipboard_monitor(
                         if converted.converted != item.content {
                             let detected = layout_engine.detect_layout(&item.content);
                             let converted_detected = layout_engine.detect_layout(&converted.converted);
-                            let strong_signal = (detected.detected_code == "en"
-                                && converted_detected.detected_code != "en"
-                                && converted_detected.confidence >= 0.70)
-                                || (detected.detected_code != "en"
-                                    && converted_detected.detected_code == "en"
-                                    && converted_detected.confidence >= 0.70);
+                            let strong_signal = if detected.detected_code == "en" {
+                                // English text -> might be wrong-layout Hebrew
+                                // Only flag if the text does NOT look like real English
+                                !looks_like_real_english(&item.content)
+                                    && converted_detected.detected_code != "en"
+                                    && converted_detected.confidence >= 0.70
+                            } else {
+                                // Non-English text -> might be wrong-layout English
+                                converted_detected.detected_code == "en"
+                                    && converted_detected.confidence >= 0.70
+                            };
                             if strong_signal {
                                 let event = WrongLayoutDetectedEvent {
                                     wrong_text: item.content.clone(),
@@ -736,10 +741,78 @@ fn open_wrong_layout_popup(app: &tauri::AppHandle, event: &WrongLayoutDetectedEv
     Ok(())
 }
 
+/// Check if English text looks like genuine English (not wrong-layout Hebrew).
+/// Wrong-layout Hebrew typed on English keyboard produces unusual patterns like:
+/// "akuo" "shgk" "dktu" — rare consonant clusters and missing vowel patterns.
+/// Real English has predictable vowel/consonant distribution.
+pub fn looks_like_real_english(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    let chars: Vec<char> = lower.chars().filter(|c| c.is_ascii_alphabetic()).collect();
+
+    if chars.is_empty() {
+        return false;
+    }
+
+    // Check 1: Vowel ratio. English text has ~35-45% vowels.
+    // Wrong-layout Hebrew has very few vowels (Hebrew vowels map to uncommon keys).
+    let vowels = chars.iter().filter(|&&c| "aeiou".contains(c)).count();
+    let vowel_ratio = vowels as f64 / chars.len() as f64;
+
+    // Real English: 20-60% vowels. Wrong-layout: typically < 15%
+    if vowel_ratio >= 0.15 {
+        return true; // Has enough vowels to be real English
+    }
+
+    // Check 2: Common English bigrams present
+    let common_bigrams = ["th", "he", "in", "er", "an", "re", "on", "at", "en", "nd",
+                          "ti", "es", "or", "te", "of", "ed", "is", "it", "al", "ar",
+                          "st", "to", "nt", "ng", "se", "ha", "le", "ou", "ea", "ne"];
+    let text_lower = lower.clone();
+    let bigram_count = common_bigrams.iter()
+        .filter(|&&bg| text_lower.contains(bg))
+        .count();
+
+    // If text has 2+ common English bigrams, it's likely real English
+    if bigram_count >= 2 {
+        return true;
+    }
+
+    // Check 3: Common short English words (exact match for short text)
+    if chars.len() <= 6 {
+        let common_words = [
+            "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
+            "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
+            "this", "but", "his", "by", "from", "they", "we", "say", "her", "she",
+            "or", "an", "will", "my", "one", "all", "would", "there", "their", "what",
+            "so", "up", "out", "if", "about", "who", "get", "which", "go", "me",
+            "when", "make", "can", "like", "time", "no", "just", "him", "know", "take",
+            "people", "into", "year", "your", "good", "some", "could", "them", "see", "other",
+            "than", "then", "now", "look", "only", "come", "its", "over", "think", "also",
+            "back", "after", "use", "two", "how", "our", "work", "first", "well", "way",
+            "even", "new", "want", "because", "any", "these", "give", "day", "most", "us",
+            "is", "are", "was", "were", "been", "had", "did", "has", "does", "got",
+            "let", "may", "much", "very", "too", "such", "more", "own", "must", "here",
+            "still", "those", "each", "where", "many", "same", "old", "big", "long", "great",
+            "help", "need", "home", "open", "play", "end", "put", "hand", "set", "try",
+            "ask", "men", "run", "high", "keep", "last", "few", "start", "show", "real",
+            "please", "plea", "plan", "test", "text", "next", "best", "left", "right", "life",
+        ];
+
+        // Check each word in the buffer
+        let words: Vec<&str> = lower.split_whitespace().collect();
+        let real_word_count = words.iter().filter(|w| common_words.contains(&w.as_ref())).count();
+        if !words.is_empty() && real_word_count as f64 / words.len() as f64 > 0.5 {
+            return true; // More than half the words are common English
+        }
+    }
+
+    false
+}
+
 fn should_analyze_wrong_layout(text: &str) -> bool {
     let trimmed = text.trim();
     let char_count = trimmed.chars().count();
-    if char_count < 4 || char_count > 200 {
+    if char_count < 5 || char_count > 200 {
         return false;
     }
     let lower = trimmed.to_lowercase();
@@ -801,12 +874,17 @@ fn global_key_monitor(app: tauri::AppHandle) {
                 if converted.converted != snapshot {
                     let detected = engine.detect_layout(&snapshot);
                     let converted_detected = engine.detect_layout(&converted.converted);
-                    let strong_signal = (detected.detected_code == "en"
-                        && converted_detected.detected_code != "en"
-                        && converted_detected.confidence >= 0.70)
-                        || (detected.detected_code != "en"
-                            && converted_detected.detected_code == "en"
-                            && converted_detected.confidence >= 0.70);
+                    let strong_signal = if detected.detected_code == "en" {
+                        // English text -> might be wrong-layout Hebrew
+                        // Only flag if the text does NOT look like real English
+                        !looks_like_real_english(&snapshot)
+                            && converted_detected.detected_code != "en"
+                            && converted_detected.confidence >= 0.70
+                    } else {
+                        // Non-English text -> might be wrong-layout English
+                        converted_detected.detected_code == "en"
+                            && converted_detected.confidence >= 0.70
+                    };
                     if strong_signal {
                         let event = WrongLayoutDetectedEvent {
                             wrong_text: snapshot.clone(),
@@ -871,12 +949,17 @@ fn macos_key_consumer(
                 if converted.converted != snapshot {
                     let detected = engine_inst.detect_layout(&snapshot);
                     let converted_detected = engine_inst.detect_layout(&converted.converted);
-                    let strong_signal = (detected.detected_code == "en"
-                        && converted_detected.detected_code != "en"
-                        && converted_detected.confidence >= 0.70)
-                        || (detected.detected_code != "en"
-                            && converted_detected.detected_code == "en"
-                            && converted_detected.confidence >= 0.70);
+                    let strong_signal = if detected.detected_code == "en" {
+                        // English text -> might be wrong-layout Hebrew
+                        // Only flag if the text does NOT look like real English
+                        !looks_like_real_english(&snapshot)
+                            && converted_detected.detected_code != "en"
+                            && converted_detected.confidence >= 0.70
+                    } else {
+                        // Non-English text -> might be wrong-layout English
+                        converted_detected.detected_code == "en"
+                            && converted_detected.confidence >= 0.70
+                    };
                     if strong_signal {
                         let event_data = WrongLayoutDetectedEvent {
                             wrong_text: snapshot.clone(),

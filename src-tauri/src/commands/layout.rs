@@ -153,6 +153,7 @@ pub fn detect_wrong_layout_alert(
     // 2) Non-English text converts into a high-confidence English script.
     let looks_like_wrong_english = detected.detected_code == "en"
         && detected.confidence >= 0.75
+        && !crate::looks_like_real_english(trimmed)
         && converted_detected.detected_code != "en"
         && converted_detected.confidence >= 0.70;
     let looks_like_wrong_non_english = detected.detected_code != "en"

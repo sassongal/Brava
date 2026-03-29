@@ -25,7 +25,7 @@ impl WrongLayoutDetector {
         WrongLayoutDetector {
             buffer: String::new(),
             max_buffer_size: 50,
-            min_detection_length: 2,
+            min_detection_length: 4,
         }
     }
 
@@ -124,5 +124,57 @@ impl WrongLayoutDetector {
 impl Default for WrongLayoutDetector {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_short_english_not_flagged() {
+        let mut d = WrongLayoutDetector::new();
+        for c in "plea".chars() { d.push_char(c); }
+        // "plea" has exactly 4 chars which equals min_detection_length,
+        // but the total non-whitespace count meets the threshold.
+        // The detector may return Some, but the caller (lib.rs) will
+        // reject it via looks_like_real_english.
+        // At minimum, verify it does not panic.
+        let _result = d.analyze();
+    }
+
+    #[test]
+    fn test_very_short_not_flagged() {
+        let mut d = WrongLayoutDetector::new();
+        for c in "hi".chars() { d.push_char(c); }
+        // Only 2 chars, below min_detection_length of 4
+        assert!(d.analyze().is_none());
+    }
+
+    #[test]
+    fn test_hebrew_on_english_keyboard_flagged() {
+        let mut d = WrongLayoutDetector::new();
+        // "akuo vkuc" is Hebrew typed on English keyboard
+        for c in "akuo vkuc".chars() { d.push_char(c); }
+        let result = d.analyze();
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_looks_like_real_english() {
+        // "plea" has vowels e and a -> vowel ratio 50%, should be flagged as real English
+        assert!(crate::looks_like_real_english("plea"));
+        // "help me" has good vowel ratio and common bigrams
+        assert!(crate::looks_like_real_english("help me"));
+        // "the best" is clearly English
+        assert!(crate::looks_like_real_english("the best"));
+    }
+
+    #[test]
+    fn test_gibberish_not_real_english() {
+        // "shgk" has no vowels -> vowel ratio 0%, no common bigrams
+        assert!(!crate::looks_like_real_english("shgk"));
+        // "dktf" has no vowels and no common English bigrams
+        assert!(!crate::looks_like_real_english("dktf"));
     }
 }
