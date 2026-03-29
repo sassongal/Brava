@@ -16,6 +16,9 @@ export const detectWrongLayoutAlert = (text: string) =>
 export const getLayouts = () =>
   invoke<LayoutInfo[]>("get_layouts");
 
+export const getCurrentKeyboardLayout = () =>
+  invoke<string>("get_current_keyboard_layout");
+
 export const convertClipboardText = () =>
   invoke<string>("convert_clipboard_text");
 

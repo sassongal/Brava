@@ -270,6 +270,7 @@ pub fn run() {
             commands::layout::convert_clipboard_text,
             commands::layout::detect_wrong_layout_alert,
             commands::layout::simulate_paste_action,
+            commands::layout::get_current_keyboard_layout,
             // Clipboard commands
             commands::clipboard::get_clipboard_items,
             commands::clipboard::add_clipboard_item,
@@ -616,6 +617,11 @@ fn clipboard_monitor(
                     if let Ok(converted) = layout_engine.auto_convert(&item.content) {
                         if converted.converted != item.content {
                             let detected = layout_engine.detect_layout(&item.content);
+
+                            // Check OS keyboard layout — if typed chars match active keyboard, skip
+                            if script_matches_active_keyboard(&detected.detected_code) {
+                                layout_detector.clear();
+                            } else {
                             let converted_detected = layout_engine.detect_layout(&converted.converted);
                             let strong_signal = if detected.detected_code == "en" {
                                 // English text -> might be wrong-layout Hebrew
@@ -639,6 +645,7 @@ fn clipboard_monitor(
                                 handle_wrong_layout_event(&app, &event);
                                 last_wrong_layout_alert = Instant::now();
                             }
+                            } // end else (script does not match keyboard)
                         }
                     }
                 }
@@ -809,6 +816,55 @@ pub fn looks_like_real_english(text: &str) -> bool {
     false
 }
 
+/// Get the active macOS keyboard layout name (e.g. "U.S.", "Hebrew", "Arabic").
+/// On non-macOS platforms returns "unknown".
+#[cfg(target_os = "macos")]
+pub fn get_active_keyboard_id() -> String {
+    std::process::Command::new("defaults")
+        .args(["read", "com.apple.HIToolbox", "AppleSelectedInputSources"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| {
+            for line in s.lines() {
+                let trimmed = line.trim();
+                if trimmed.contains("KeyboardLayout Name") {
+                    return Some(
+                        trimmed
+                            .replace("\"KeyboardLayout Name\" = ", "")
+                            .trim_matches(|c: char| c == '"' || c == ';' || c == ' ')
+                            .to_string(),
+                    );
+                }
+            }
+            None
+        })
+        .unwrap_or_else(|| "U.S.".to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn get_active_keyboard_id() -> String {
+    "unknown".to_string()
+}
+
+/// Returns true if the detected script matches the user's active OS keyboard layout,
+/// meaning the user is typing correctly and should NOT be flagged.
+fn script_matches_active_keyboard(detected_code: &str) -> bool {
+    let active_kb = get_active_keyboard_id();
+    let active_is_hebrew = active_kb.contains("Hebrew");
+    let active_is_english = active_kb.contains("U.S.")
+        || active_kb.contains("ABC")
+        || active_kb.contains("British")
+        || active_kb.contains("Australian");
+    let active_is_arabic = active_kb.contains("Arabic");
+    let active_is_russian = active_kb.contains("Russian");
+
+    (detected_code == "he" && active_is_hebrew)
+        || (detected_code == "en" && active_is_english)
+        || (detected_code == "ar" && active_is_arabic)
+        || (detected_code == "ru" && active_is_russian)
+}
+
 fn should_analyze_wrong_layout(text: &str) -> bool {
     let trimmed = text.trim();
     let char_count = trimmed.chars().count();
@@ -873,6 +929,11 @@ fn global_key_monitor(app: tauri::AppHandle) {
             if let Ok(converted) = engine.auto_convert(&snapshot) {
                 if converted.converted != snapshot {
                     let detected = engine.detect_layout(&snapshot);
+
+                    // Check OS keyboard layout — if typed chars match active keyboard, skip
+                    if script_matches_active_keyboard(&detected.detected_code) {
+                        detector.clear();
+                    } else {
                     let converted_detected = engine.detect_layout(&converted.converted);
                     let strong_signal = if detected.detected_code == "en" {
                         // English text -> might be wrong-layout Hebrew
@@ -897,6 +958,7 @@ fn global_key_monitor(app: tauri::AppHandle) {
                         last_alert = Instant::now();
                         detector.clear();
                     }
+                    } // end else (script does not match keyboard)
                 }
             }
         }
@@ -948,6 +1010,11 @@ fn macos_key_consumer(
             if let Ok(converted) = engine_inst.auto_convert(&snapshot) {
                 if converted.converted != snapshot {
                     let detected = engine_inst.detect_layout(&snapshot);
+
+                    // Check OS keyboard layout — if typed chars match active keyboard, skip
+                    if script_matches_active_keyboard(&detected.detected_code) {
+                        detector.clear();
+                    } else {
                     let converted_detected = engine_inst.detect_layout(&converted.converted);
                     let strong_signal = if detected.detected_code == "en" {
                         // English text -> might be wrong-layout Hebrew
@@ -972,6 +1039,7 @@ fn macos_key_consumer(
                         last_alert = Instant::now();
                         detector.clear();
                     }
+                    } // end else (script does not match keyboard)
                 }
             }
         }

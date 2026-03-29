@@ -86,7 +86,11 @@ function App() {
               await writeSystemClipboard(fixed.content);
               showToast(t("ai.grammarCorrected"), "success");
             }
-          } catch { /* grammar fix is best-effort */ }
+          } catch (err) {
+            if (String(err).includes("API key") || String(err).includes("NoApiKey")) {
+              showToast(t("ai.keyError"), "warning");
+            }
+          }
         }
       } catch (err) {
         showToast(`${t("conv.failed")}: ${String(err)}`, "error");

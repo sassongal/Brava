@@ -110,6 +110,7 @@ const translations = {
   "ai.translatePlaceholder": { en: "Enter text to translate...", he: "הכנס טקסט לתרגום..." },
   "ai.askPlaceholder": { en: "Ask anything...", he: "שאל כל דבר..." },
   "ai.requestFailed": { en: "AI request failed", he: "בקשת AI נכשלה" },
+  "ai.keyError": { en: "API key is missing or invalid. Go to Settings > AI to fix it.", he: "מפתח API חסר או שגוי. עבור להגדרות > AI כדי לתקן." },
   "ai.streaming": { en: "streaming", he: "סטרימינג" },
   "ai.streamModeBeta": { en: "Stream mode (beta)", he: "מצב סטרימינג (בטא)" },
   "ai.savedPrompts": { en: "Saved Prompts", he: "פרומפטים שמורים" },

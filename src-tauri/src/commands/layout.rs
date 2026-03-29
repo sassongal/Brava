@@ -121,6 +121,12 @@ pub fn simulate_paste_action() {
     simulate_paste();
 }
 
+/// Get the current OS keyboard input source name (e.g. "U.S.", "Hebrew", "Arabic")
+#[tauri::command]
+pub fn get_current_keyboard_layout() -> String {
+    crate::get_active_keyboard_id()
+}
+
 #[derive(Serialize)]
 pub struct WrongLayoutAlert {
     pub wrong_text: String,

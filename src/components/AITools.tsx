@@ -104,8 +104,14 @@ export function AITools() {
       setOutput(result);
     } catch (err) {
       clearTimeout(timeoutId);
-      setError(String(err));
-      showToast(`${t("ai.requestFailed")}: ${String(err)}`, "error");
+      const errStr = String(err);
+      setError(errStr);
+
+      if (errStr.includes("API key") || errStr.includes("401") || errStr.includes("Unauthorized") || errStr.includes("NoApiKey")) {
+        showToast(t("ai.keyError"), "error");
+      } else {
+        showToast(`${t("ai.requestFailed")}: ${errStr}`, "error");
+      }
     }
     setLoading(false);
   };
@@ -127,8 +133,14 @@ export function AITools() {
       setOutput(result);
     } catch (err) {
       clearTimeout(timeoutId);
-      setError(String(err));
-      showToast(`${t("ai.requestFailed")}: ${String(err)}`, "error");
+      const errStr = String(err);
+      setError(errStr);
+
+      if (errStr.includes("API key") || errStr.includes("401") || errStr.includes("Unauthorized") || errStr.includes("NoApiKey")) {
+        showToast(t("ai.keyError"), "error");
+      } else {
+        showToast(`${t("ai.requestFailed")}: ${errStr}`, "error");
+      }
     }
     setLoading(false);
   };
@@ -188,8 +200,14 @@ export function AITools() {
         }
       }
     } catch (err) {
-      setError(String(err));
-      showToast(`${t("ai.requestFailed")}: ${String(err)}`, "error");
+      const errStr = String(err);
+      setError(errStr);
+
+      if (errStr.includes("API key") || errStr.includes("401") || errStr.includes("Unauthorized") || errStr.includes("NoApiKey")) {
+        showToast(t("ai.keyError"), "error");
+      } else {
+        showToast(`${t("ai.requestFailed")}: ${errStr}`, "error");
+      }
     }
     setLoading(false);
   };

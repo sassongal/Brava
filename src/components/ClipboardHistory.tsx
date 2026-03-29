@@ -8,8 +8,10 @@ import {
   clearClipboardHistory,
   writeSystemClipboard,
   writeImageToClipboard,
+  aiComplete,
   type ClipboardItem,
 } from "../lib/tauri";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { showToast } from "./Toast";
 import { useLocale } from "../lib/i18n";
@@ -338,6 +340,35 @@ export function ClipboardHistory() {
                   >
                     {"\u{1F5D1}"}
                   </button>
+                  {/* Contextual action based on category */}
+                  {item.category === "url" && (
+                    <button className="btn-icon" onClick={() => { openUrl(item.content); }} title="Open URL" style={{ color: "var(--info)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    </button>
+                  )}
+                  {item.category === "email" && (
+                    <button className="btn-icon" onClick={() => { openUrl(`mailto:${item.content.trim()}`); }} title="Send Email" style={{ color: "var(--info)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    </button>
+                  )}
+                  {item.category === "phone" && (
+                    <button className="btn-icon" onClick={() => { openUrl(`tel:${item.content.trim()}`); }} title="Call" style={{ color: "var(--info)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+                    </button>
+                  )}
+                  {item.category === "code" && (
+                    <button className="btn-icon" onClick={async () => {
+                      try {
+                        const result = await aiComplete(item.content, "Explain this code briefly in 2-3 sentences.");
+                        showToast(result.content.slice(0, 100), "info");
+                      } catch { showToast("AI not configured", "error"); }
+                    }} title="Explain with AI" style={{ color: "var(--info)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </button>
+                  )}
+                  {item.category === "color" && (
+                    <div style={{ width: 14, height: 14, borderRadius: 3, background: item.content.trim(), border: "1px solid var(--border)", flexShrink: 0 }} title={item.content.trim()} />
+                  )}
                 </div>
               </div>
               {hoveredId === item.id && !item.image_path && item.content.length > 80 && (
