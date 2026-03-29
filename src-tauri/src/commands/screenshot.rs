@@ -55,13 +55,11 @@ pub async fn capture_full_screen(app: tauri::AppHandle) -> Result<String, String
             return Err("Screen capture failed".to_string());
         }
     } else if cfg!(target_os = "windows") {
-        // Safety: filepath is generated from timestamp + UUID, contains no special characters.
-        // Validate defensively anyway to prevent PowerShell injection.
-        if filepath_str.contains('$') || filepath_str.contains('`') || filepath_str.contains(')') {
-            return Err("Screenshot path contains special characters".to_string());
-        }
+        // Validate generated path is safe for PowerShell (only safe characters)
+        assert!(filepath_str.chars().all(|c| c.is_alphanumeric() || "/-_.\\ :".contains(c)),
+            "Screenshot path contains unexpected characters");
         let ps_script = format!(
-            r#"Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bitmap = New-Object System.Drawing.Bitmap($screen.Width, $screen.Height); $graphics = [System.Drawing.Graphics]::FromImage($bitmap); $graphics.CopyFromScreen($screen.Location, [System.Drawing.Point]::Empty, $screen.Size); $bitmap.Save('{}'); $graphics.Dispose(); $bitmap.Dispose()"#,
+            r#"Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen; $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height); $graphics = [System.Drawing.Graphics]::FromImage($bitmap); $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size); $bitmap.Save('{}'); $graphics.Dispose(); $bitmap.Dispose()"#,
             filepath_str.replace('\'', "''")
         );
         let status = std::process::Command::new("powershell")
@@ -89,7 +87,7 @@ pub async fn open_screenshot_editor(
 ) -> Result<(), String> {
     if let Some(existing) = app.get_webview_window("screenshot-editor") {
         let _ = existing.close();
-        std::thread::sleep(Duration::from_millis(150));
+        tokio::time::sleep(Duration::from_millis(150)).await;
     }
     let url = format!("index.html?image={}", urlencoding::encode(&image_path));
     let _window = WebviewWindowBuilder::new(
@@ -269,6 +267,9 @@ pub async fn save_data_url_to_path(
     data_url: String,
     dest_path: String,
 ) -> Result<(), String> {
+    if dest_path.contains("..") {
+        return Err("Invalid save path".to_string());
+    }
     if data_url.len() > 30_000_000 {
         return Err("Image data is too large".to_string());
     }

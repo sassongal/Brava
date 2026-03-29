@@ -234,7 +234,7 @@ export function ScreenshotEditor() {
 
   // Save handler
   const handleSave = async () => {
-    if (!selection) return;
+    if (!selection || saving) return;
     setSaving(true);
     try {
       let annotatedDataUrl: string | undefined;
@@ -265,6 +265,8 @@ export function ScreenshotEditor() {
           cCtx.drawImage(canvasRef.current, 0, 0);
           annotatedDataUrl = composite.toDataURL("image/png");
         }
+        composite.width = 0;
+        composite.height = 0;
       }
       const savedPath = await saveScreenshotRegion(
         imagePath,
@@ -319,6 +321,8 @@ export function ScreenshotEditor() {
             cCtx.drawImage(canvasRef.current, 0, 0);
             annotatedDataUrl = composite.toDataURL("image/png");
           }
+          composite.width = 0;
+          composite.height = 0;
         }
         if (annotatedDataUrl) {
           await saveDataUrlToPath(annotatedDataUrl, path);
@@ -357,6 +361,8 @@ export function ScreenshotEditor() {
       }
       // Save temp and copy
       const dataUrl = composite.toDataURL("image/png");
+      composite.width = 0;
+      composite.height = 0;
       const savedPath = await saveScreenshotRegion(
         imagePath,
         (() => {

@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 use std::path::PathBuf;
 
 static TYPING_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
+static CLIPBOARD_MONITOR_SHUTDOWN: AtomicBool = AtomicBool::new(false);
 use tauri::Manager;
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -348,21 +349,36 @@ pub fn run() {
 fn setup_tray(app: &mut tauri::App, settings: &AppSettings) -> Result<(), Box<dyn std::error::Error>> {
     let is_hebrew = settings.language == "he";
 
+    let shortcut_fmt = |key: &str| -> String {
+        if cfg!(target_os = "macos") {
+            format!("\u{21E7}\u{2318}{}", key)
+        } else {
+            format!("Ctrl+Shift+{}", key)
+        }
+    };
+    let shortcut_fmt_single = |key: &str| -> String {
+        if cfg!(target_os = "macos") {
+            format!("\u{2318}{}", key)
+        } else {
+            format!("Ctrl+{}", key)
+        }
+    };
+
     // Menu items with accelerator hints in labels
     let show = MenuItemBuilder::with_id("show",
         if is_hebrew { "הצג Brava" } else { "Show Brava" }).build(app)?;
     let clipboard = MenuItemBuilder::with_id("clipboard",
-        if is_hebrew { "היסטוריית לוח           \u{21E7}\u{2318}V" } else { "Clipboard History       \u{21E7}\u{2318}V" }).build(app)?;
+        if is_hebrew { format!("היסטוריית לוח           {}", shortcut_fmt("V")) } else { format!("Clipboard History       {}", shortcut_fmt("V")) }).build(app)?;
     let convert = MenuItemBuilder::with_id("convert",
-        if is_hebrew { "המר בחירה              \u{21E7}\u{2318}T" } else { "Convert Selection        \u{21E7}\u{2318}T" }).build(app)?;
+        if is_hebrew { format!("המר בחירה              {}", shortcut_fmt("T")) } else { format!("Convert Selection        {}", shortcut_fmt("T")) }).build(app)?;
     let enhance = MenuItemBuilder::with_id("enhance",
-        if is_hebrew { "שפר פרומפט             \u{21E7}\u{2318}P" } else { "Enhance Prompt         \u{21E7}\u{2318}P" }).build(app)?;
+        if is_hebrew { format!("שפר פרומפט             {}", shortcut_fmt("P")) } else { format!("Enhance Prompt         {}", shortcut_fmt("P")) }).build(app)?;
     let translate = MenuItemBuilder::with_id("translate",
-        if is_hebrew { "תרגום                   \u{21E7}\u{2318}L" } else { "Translate                  \u{21E7}\u{2318}L" }).build(app)?;
+        if is_hebrew { format!("תרגום                   {}", shortcut_fmt("L")) } else { format!("Translate                  {}", shortcut_fmt("L")) }).build(app)?;
     let screenshot = MenuItemBuilder::with_id("screenshot",
-        if is_hebrew { "צילום מסך              \u{21E7}\u{2318}S" } else { "Screenshot               \u{21E7}\u{2318}S" }).build(app)?;
+        if is_hebrew { format!("צילום מסך              {}", shortcut_fmt("S")) } else { format!("Screenshot               {}", shortcut_fmt("S")) }).build(app)?;
     let search = MenuItemBuilder::with_id("search",
-        if is_hebrew { "חיפוש מהיר              \u{2318}K" } else { "Quick Search              \u{2318}K" }).build(app)?;
+        if is_hebrew { format!("חיפוש מהיר              {}", shortcut_fmt_single("K")) } else { format!("Quick Search              {}", shortcut_fmt_single("K")) }).build(app)?;
 
     // Detection mode
     let detection_label = match settings.wrong_layout_mode.as_str() {
@@ -540,6 +556,10 @@ fn clipboard_monitor(
     let mut last_suggested = String::new();
 
     loop {
+        if CLIPBOARD_MONITOR_SHUTDOWN.load(Ordering::Relaxed) {
+            log::info!("Clipboard monitor shutting down");
+            break;
+        }
         std::thread::sleep(Duration::from_millis(500));
 
         // Check text first
@@ -907,7 +927,44 @@ pub fn get_active_keyboard_id() -> String {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub fn get_active_keyboard_id() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetKeyboardLayout;
+
+        unsafe {
+            let thread_id = windows_sys::Win32::System::Threading::GetCurrentThreadId();
+            let hkl = GetKeyboardLayout(thread_id);
+            let lang_id = (hkl as u32) & 0xFFFF;
+
+            match lang_id {
+                0x040D => "Hebrew".to_string(),
+                0x0401 => "Arabic".to_string(),
+                0x0419 => "Russian".to_string(),
+                0x0409 | 0x0809 | 0x0C09 => "U.S.".to_string(), // US, UK, AU English
+                _ => format!("lang_{:#06x}", lang_id),
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn get_active_keyboard_id() -> String {
+    std::process::Command::new("setxkbmap")
+        .args(["-query"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("layout:"))
+                .map(|l| l.trim_start_matches("layout:").trim().to_string())
+        })
+        .unwrap_or_else(|| "us".to_string())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 pub fn get_active_keyboard_id() -> String {
     "unknown".to_string()
 }

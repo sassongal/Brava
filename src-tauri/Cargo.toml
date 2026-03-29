@@ -42,7 +42,7 @@ tauri-plugin-updater = "2"
 rdev = "0.5"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_System_Power"] }
+windows-sys = { version = "0.59", features = ["Win32_System_Power", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_TextServices", "Win32_System_Threading"] }
 
 # Fork: tray menu only on left click; right click is handled in-app (e.g. open clipboard tab).
 # Upstream opens the native menu on both clicks when menu_on_left_click is true.

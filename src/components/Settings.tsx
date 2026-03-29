@@ -150,7 +150,7 @@ export function Settings() {
       if (claudeKey.trim()) void runHealthCheck("claude", claudeKey);
       if (openrouterKey.trim()) void runHealthCheck("openrouter", openrouterKey);
       void runHealthCheck("ollama");
-    }, 500);
+    }, 1500);
     return () => clearTimeout(timer);
   }, [geminiKey, openaiKey, claudeKey, openrouterKey, settings?.ai_provider]);
 

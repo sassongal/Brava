@@ -101,10 +101,24 @@ fn simulate_copy() {
             .args(["key", "ctrl+c"])
             .output();
     } else if cfg!(target_os = "windows") {
-        // On Windows, use PowerShell to send Ctrl+C
-        let _ = std::process::Command::new("powershell")
-            .args(["-NoProfile", "-Command", r#"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^c")"#])
-            .output();
+        #[cfg(target_os = "windows")]
+        {
+            use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
+            unsafe {
+                let mut inputs: [INPUT; 4] = std::mem::zeroed();
+                inputs[0].r#type = INPUT_KEYBOARD;
+                inputs[0].Anonymous.ki.wVk = VK_CONTROL;
+                inputs[1].r#type = INPUT_KEYBOARD;
+                inputs[1].Anonymous.ki.wVk = 0x43; // 'C'
+                inputs[2].r#type = INPUT_KEYBOARD;
+                inputs[2].Anonymous.ki.wVk = 0x43;
+                inputs[2].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+                inputs[3].r#type = INPUT_KEYBOARD;
+                inputs[3].Anonymous.ki.wVk = VK_CONTROL;
+                inputs[3].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+                SendInput(4, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32);
+            }
+        }
     }
 }
 
@@ -119,9 +133,24 @@ fn simulate_paste() {
             .args(["key", "ctrl+v"])
             .output();
     } else if cfg!(target_os = "windows") {
-        let _ = std::process::Command::new("powershell")
-            .args(["-NoProfile", "-Command", r#"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^v")"#])
-            .output();
+        #[cfg(target_os = "windows")]
+        {
+            use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
+            unsafe {
+                let mut inputs: [INPUT; 4] = std::mem::zeroed();
+                inputs[0].r#type = INPUT_KEYBOARD;
+                inputs[0].Anonymous.ki.wVk = VK_CONTROL;
+                inputs[1].r#type = INPUT_KEYBOARD;
+                inputs[1].Anonymous.ki.wVk = 0x56; // 'V'
+                inputs[2].r#type = INPUT_KEYBOARD;
+                inputs[2].Anonymous.ki.wVk = 0x56;
+                inputs[2].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+                inputs[3].r#type = INPUT_KEYBOARD;
+                inputs[3].Anonymous.ki.wVk = VK_CONTROL;
+                inputs[3].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+                SendInput(4, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32);
+            }
+        }
     }
 }
 

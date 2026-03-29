@@ -32,10 +32,11 @@ impl WrongLayoutDetector {
     /// Add a character to the detection buffer
     pub fn push_char(&mut self, c: char) {
         self.buffer.push(c);
-        if self.buffer.len() > self.max_buffer_size {
-            // Remove oldest characters
-            let drain_count = self.buffer.len() - self.max_buffer_size;
-            self.buffer.drain(..drain_count);
+        if self.buffer.chars().count() > self.max_buffer_size {
+            // Remove oldest characters safely (char boundary aware)
+            if let Some((idx, _)) = self.buffer.char_indices().nth(1) {
+                self.buffer.drain(..idx);
+            }
         }
     }
 
@@ -52,7 +53,7 @@ impl WrongLayoutDetector {
     /// Analyze the current buffer for wrong-layout typing.
     /// Returns a detection alert if the buffer likely contains wrong-layout text.
     pub fn analyze(&self) -> Option<DetectionAlert> {
-        if self.buffer.len() < self.min_detection_length {
+        if self.buffer.chars().count() < self.min_detection_length {
             return None;
         }
 

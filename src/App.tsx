@@ -98,7 +98,7 @@ function App() {
     }));
 
     unsubs.push(listen("hotkey-clipboard", () => {
-      navigate("clipboard");
+      setQuickPasteOpen(true);
     }));
 
     unsubs.push(listen("hotkey-quick-paste", () => {
