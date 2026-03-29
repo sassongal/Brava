@@ -124,13 +124,18 @@ export function ScreenshotEditor() {
       setResizing(null);
       // Resize the canvas to match new selection
       if (canvasRef.current && selection) {
-        const oldCanvas = canvasRef.current;
-        const oldData = oldCanvas.getContext("2d")?.getImageData(0, 0, oldCanvas.width, oldCanvas.height);
-        oldCanvas.width = selection.w;
-        oldCanvas.height = selection.h;
-        if (oldData) {
-          oldCanvas.getContext("2d")?.putImageData(oldData, 0, 0);
+        // Before resizing canvas, save undo state
+        const ctx = canvasRef.current.getContext("2d");
+        if (ctx) {
+          const undoEntry = ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
+          setUndoStack(prev => {
+            const next = [...prev, undoEntry];
+            return next.length > 10 ? next.slice(next.length - 10) : next;
+          });
         }
+        // Then resize canvas
+        canvasRef.current.width = selection.w;
+        canvasRef.current.height = selection.h;
       }
       return;
     }
@@ -642,7 +647,7 @@ export function ScreenshotEditor() {
                 if (ctx2) {
                   setUndoStack(prev => {
                     const next = [...prev, ctx2.getImageData(0, 0, canvasRef.current!.width, canvasRef.current!.height)];
-                    return next.length > 20 ? next.slice(next.length - 20) : next;
+                    return next.length > 10 ? next.slice(next.length - 10) : next;
                   });
                 }
               }

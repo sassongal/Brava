@@ -14,6 +14,8 @@ export function WrongLayoutPopup() {
 
   const dismissedRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const handleFixRef = useRef<() => void>(() => {});
+  const handleDismissRef = useRef<() => void>(() => {});
 
   const close = async () => {
     if (dismissedRef.current) return;
@@ -42,6 +44,9 @@ export function WrongLayoutPopup() {
     await close();
   };
 
+  handleFixRef.current = handleFix;
+  handleDismissRef.current = handleDismiss;
+
   // Focus container on mount so keyboard events work
   useEffect(() => {
     containerRef.current?.focus();
@@ -49,9 +54,11 @@ export function WrongLayoutPopup() {
 
   // Play piano chime on popup open
   useEffect(() => {
+    let ctx: AudioContext | null = null;
     try {
-      const ctx = new AudioContext();
+      ctx = new AudioContext();
       const play = (freq: number, delay: number, dur: number) => {
+        if (!ctx) return;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "sine";
@@ -63,30 +70,23 @@ export function WrongLayoutPopup() {
         osc.start(ctx.currentTime + delay);
         osc.stop(ctx.currentTime + delay + dur);
       };
-      play(880, 0, 0.15);   // A5
-      play(1108, 0.08, 0.2); // C#6
+      play(880, 0, 0.15);
+      play(1108, 0.08, 0.2);
     } catch {}
+    return () => {
+      if (ctx) ctx.close().catch(() => {});
+    };
   }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
-    const handler = async (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        try {
-          await invoke("write_system_clipboard", { text: suggestedText });
-          setTimeout(async () => {
-            try { await invoke("simulate_paste_action"); } catch {}
-            await close();
-          }, 100);
-        } catch {}
-      }
-      if (e.key === "Escape") {
-        await close();
-      }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Enter") handleFixRef.current();
+      if (e.key === "Escape") handleDismissRef.current();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [suggestedText]);
+  }, []);
 
   // Auto-dismiss after 6 seconds
   useEffect(() => {

@@ -24,6 +24,7 @@ use std::path::PathBuf;
 
 static TYPING_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
 use tauri::Manager;
+use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 
@@ -401,9 +402,15 @@ fn setup_tray(app: &mut tauri::App, settings: &AppSettings) -> Result<(), Box<dy
         .item(&quit)
         .build()?;
 
-    let _tray = TrayIconBuilder::new()
+    let tray_icon = Image::from_bytes(include_bytes!("../icons/tray-icon@1x.png"))
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
+
+    let _tray = TrayIconBuilder::with_id("main")
+        .icon(tray_icon)
+        .icon_as_template(true)
         .menu(&menu)
         .tooltip("Brava - Smart Productivity Toolkit")
+        .show_menu_on_left_click(true)
         .on_menu_event(move |app, event| {
             use tauri::Emitter;
 
@@ -434,19 +441,6 @@ fn setup_tray(app: &mut tauri::App, settings: &AppSettings) -> Result<(), Box<dy
                 "settings" => show_and_navigate("settings"),
                 "quit" => { app.exit(0); }
                 _ => {}
-            }
-        })
-        .on_tray_icon_event(|tray, event| {
-            if let tauri::tray::TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, .. } = event {
-                let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
-                    if window.is_visible().unwrap_or(false) {
-                        let _ = window.hide();
-                    } else {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                }
             }
         })
         .build(app)?;
@@ -483,8 +477,11 @@ fn load_api_keys_from_keyring(ai_state: &AIState) {
 /// Compute a lightweight signature for clipboard image data to detect changes
 /// without comparing all pixel bytes.
 fn image_signature(img: &arboard::ImageData) -> String {
-    let first_bytes: Vec<u8> = img.bytes.iter().take(64).copied().collect();
-    format!("{}x{}:{:?}", img.width, img.height, first_bytes)
+    let len = img.bytes.len();
+    let start: Vec<u8> = img.bytes.iter().take(128).copied().collect();
+    let mid_offset = len / 2;
+    let mid: Vec<u8> = img.bytes.iter().skip(mid_offset).take(128).copied().collect();
+    format!("{}x{}:s{:?}m{:?}", img.width, img.height, start, mid)
 }
 
 /// Background thread that polls the system clipboard every 500ms.

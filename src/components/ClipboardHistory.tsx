@@ -63,7 +63,7 @@ export function ClipboardHistory() {
   useEffect(() => {
     loadItems();
     // Poll as fallback every 5 seconds (reduced from 2s since we have events now)
-    const interval = setInterval(loadItems, 5000);
+    const interval = setInterval(loadItems, 30000);
     // Listen for real-time clipboard changes from the Rust backend
     const unlisten = listen<ClipboardItem>("clipboard-changed", () => {
       loadItems();

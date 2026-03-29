@@ -39,6 +39,9 @@ pub fn update_settings(
         let _ = db.0.set_setting("global_detector_crash_streak", "0");
     }
 
+    // Persist to database immediately so changes survive restart
+    settings.save(&db.0).map_err(|e| format!("Failed to persist settings: {}", e))?;
+
     let mut current = state.0.lock().map_err(|e| e.to_string())?;
     *current = settings;
     Ok(())
@@ -403,11 +406,25 @@ pub fn restore_full_backup(
     }
 
     if screenshots_src.exists() {
+        // Instead of deleting old screenshots first, rename to a temp location
+        // so we can restore them if the finalization fails.
+        let screenshots_old = app_data.join("screenshots_old_backup");
         if screenshots_dst.exists() {
-            let _ = std::fs::remove_dir_all(&screenshots_dst);
+            let _ = std::fs::rename(&screenshots_dst, &screenshots_old);
         }
-        std::fs::rename(&staged_screenshots, &screenshots_dst)
-            .map_err(|e| format!("Failed to finalize screenshots restore: {}", e))?;
+        match std::fs::rename(&staged_screenshots, &screenshots_dst) {
+            Ok(_) => {
+                // Success — clean up old
+                let _ = std::fs::remove_dir_all(&screenshots_old);
+            }
+            Err(e) => {
+                // Restore old screenshots
+                if screenshots_old.exists() {
+                    let _ = std::fs::rename(&screenshots_old, &screenshots_dst);
+                }
+                return Err(format!("Failed to finalize screenshots restore: {}", e));
+            }
+        }
     }
 
     Ok(())
@@ -417,6 +434,10 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     std::fs::create_dir_all(dst).map_err(|e| format!("Failed to create dir {}: {}", dst.display(), e))?;
     for entry in std::fs::read_dir(src).map_err(|e| format!("Failed to read dir {}: {}", src.display(), e))? {
         let entry = entry.map_err(|e| format!("Failed to read dir entry: {}", e))?;
+        let file_type = entry.file_type().map_err(|e| format!("Failed to get file type: {}", e))?;
+        if file_type.is_symlink() {
+            continue; // Skip symlinks for security
+        }
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
         if src_path.is_dir() {

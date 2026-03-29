@@ -187,9 +187,9 @@ pub mod monitor {
                 log::info!("macOS global key monitor started successfully");
                 CFRunLoopRun(); // This blocks forever
 
-                // CFRunLoopRun returned — tap was disabled or stopped
-                drop(Box::from_raw(tx_raw));
-                log::info!("macOS key monitor stopped");
+                // Event tap was stopped by macOS. Don't free tx_ptr here because
+                // the callback might still fire briefly. Let it leak until process exit.
+                log::warn!("macOS key monitor event tap was disabled");
             }
         });
 

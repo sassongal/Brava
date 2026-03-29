@@ -147,9 +147,10 @@ pub async fn enqueue_transcription_blob(
         return Err("Recording is too large (max 25MB)".to_string());
     }
 
+    let timestamp = chrono::Utc::now().timestamp_millis();
     let name = file_name
-        .map(|n| n.to_string())
-        .unwrap_or_else(|| format!("voice_{}.{}", chrono::Utc::now().timestamp_millis(), ext));
+        .and_then(|n| std::path::Path::new(n).file_name().map(|f| f.to_string_lossy().to_string()))
+        .unwrap_or_else(|| format!("voice_{}.{}", timestamp, ext));
     let path = recordings_dir.join(name);
     std::fs::write(&path, bytes)
         .map_err(|e| format!("Failed to save recording: {}", e))?;

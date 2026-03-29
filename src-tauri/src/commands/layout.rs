@@ -44,7 +44,10 @@ pub fn convert_clipboard_text(
     let mut clipboard = arboard::Clipboard::new()
         .map_err(|e| format!("Failed to access clipboard: {}", e))?;
 
-    // Step 1: Simulate Cmd+C to copy selected text
+    // Step 1: Mark that we're about to use the clipboard — monitor should skip
+    clipboard_state.0.set_skip("__brava_converting__");
+
+    // Simulate Cmd+C to copy selected text
     simulate_copy();
     // Brief pause to let the OS process the copy
     std::thread::sleep(std::time::Duration::from_millis(150));

@@ -26,7 +26,7 @@ pub async fn capture_full_screen(app: tauri::AppHandle) -> Result<String, String
         let mut hid_main = false;
         if let Some(main) = app.get_webview_window("main") {
             let _ = main.hide();
-            std::thread::sleep(Duration::from_millis(120));
+            tokio::time::sleep(Duration::from_millis(120)).await;
             hid_main = true;
         }
         let status = std::process::Command::new("screencapture")
@@ -55,6 +55,11 @@ pub async fn capture_full_screen(app: tauri::AppHandle) -> Result<String, String
             return Err("Screen capture failed".to_string());
         }
     } else if cfg!(target_os = "windows") {
+        // Safety: filepath is generated from timestamp + UUID, contains no special characters.
+        // Validate defensively anyway to prevent PowerShell injection.
+        if filepath_str.contains('$') || filepath_str.contains('`') || filepath_str.contains(')') {
+            return Err("Screenshot path contains special characters".to_string());
+        }
         let ps_script = format!(
             r#"Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bitmap = New-Object System.Drawing.Bitmap($screen.Width, $screen.Height); $graphics = [System.Drawing.Graphics]::FromImage($bitmap); $graphics.CopyFromScreen($screen.Location, [System.Drawing.Point]::Empty, $screen.Size); $bitmap.Save('{}'); $graphics.Dispose(); $bitmap.Dispose()"#,
             filepath_str.replace('\'', "''")
@@ -84,7 +89,7 @@ pub async fn open_screenshot_editor(
 ) -> Result<(), String> {
     if let Some(existing) = app.get_webview_window("screenshot-editor") {
         let _ = existing.close();
-        std::thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(Duration::from_millis(150));
     }
     let url = format!("index.html?image={}", urlencoding::encode(&image_path));
     let _window = WebviewWindowBuilder::new(
