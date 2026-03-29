@@ -26,7 +26,7 @@ static TYPING_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
 use tauri::Manager;
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
 /// Shared database state accessible from commands and background tasks
 pub struct DatabaseState(pub Arc<Database>);
@@ -411,6 +411,26 @@ fn setup_tray(app: &mut tauri::App, settings: &AppSettings) -> Result<(), Box<dy
         .menu(&menu)
         .tooltip("Brava - Smart Productivity Toolkit")
         .show_menu_on_left_click(true)
+        .on_tray_icon_event(|tray, event| {
+            use tauri::Emitter;
+            let TrayIconEvent::Click {
+                button,
+                button_state,
+                ..
+            } = event
+            else {
+                return;
+            };
+            if button != MouseButton::Right || button_state != MouseButtonState::Down {
+                return;
+            }
+            let app = tray.app_handle();
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            let _ = app.emit("navigate-tab", "clipboard");
+        })
         .on_menu_event(move |app, event| {
             use tauri::Emitter;
 

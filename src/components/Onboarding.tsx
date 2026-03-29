@@ -1,80 +1,157 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocale, setLocale } from "../lib/i18n";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { checkPermissions, getAppInfo, type PermissionStatus } from "../lib/tauri";
+import logoMark from "../assets/brava-brand/logos/logo-mark.svg";
 
 interface OnboardingProps {
   onComplete: () => void;
 }
 
+interface PermStepConfig {
+  key: keyof PermissionStatus;
+  titleKey: string;
+  whyKey: string;
+  featuresKey: string;
+  url: string;
+  icon: React.ReactNode;
+  noteKey?: string;
+}
+
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [locale, t] = useLocale();
   const [step, setStep] = useState(0);
-  const [permissions, setPermissions] = useState<PermissionStatus | null>(null);
-  const [currentPlatform, setCurrentPlatform] = useState<string>("macos");
+  const [permStatus, setPermStatus] = useState<PermissionStatus | null>(null);
+  const [platform, setPlatform] = useState("macos");
+  const [skippedPerms, setSkippedPerms] = useState<Set<string>>(new Set());
   const isHebrew = locale === "he";
+  const dir = isHebrew ? "rtl" : "ltr";
+  const prevGrantedRef = useRef<Record<string, boolean>>({});
 
-  // Detect platform on mount
+  // Detect platform
   useEffect(() => {
-    getAppInfo().then((info) => setCurrentPlatform(info.platform)).catch(() => {});
+    getAppInfo().then(info => setPlatform(info.platform)).catch(() => {});
   }, []);
 
-  const refreshPermissions = useCallback(async () => {
+  const isMacOS = platform === "macos";
+
+  // macOS permission steps
+  const permSteps: PermStepConfig[] = isMacOS ? [
+    {
+      key: "accessibility",
+      titleKey: "onb.perm.accessibilityTitle",
+      whyKey: "onb.perm.accessibilityWhy",
+      featuresKey: "onb.perm.accessibilityFeatures",
+      url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+    },
+    {
+      key: "screen_recording",
+      titleKey: "onb.perm.screenRecordingTitle",
+      whyKey: "onb.perm.screenRecordingWhy",
+      featuresKey: "onb.perm.screenRecordingFeatures",
+      url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+      icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>,
+    },
+    {
+      key: "automation",
+      titleKey: "onb.perm.automationTitle",
+      whyKey: "onb.perm.automationWhy",
+      featuresKey: "onb.perm.automationFeatures",
+      url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
+      icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>,
+      noteKey: "onb.perm.automationNote",
+    },
+  ] : [];
+
+  // Feature steps
+  const featureSteps = [
+    { titleKey: "onb.layoutTitle", descKey: "onb.layoutDesc", detailKey: "onb.layoutDetail",
+      icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><path d="M2 7h20M22 7l-4-4M22 17H2M2 17l4 4"/></svg> },
+    { titleKey: "onb.clipTitle", descKey: "onb.clipDesc", detailKey: "onb.clipDetail",
+      icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V1.5A.5.5 0 019.5 1h5a.5.5 0 01.5.5V3"/></svg> },
+    { titleKey: "onb.aiTitle", descKey: "onb.aiDesc", detailKey: "onb.aiDetail",
+      icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg> },
+    { titleKey: "onb.screenshotTitle", descKey: "onb.screenshotDesc", detailKey: "onb.screenshotDetail",
+      icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="3"/></svg> },
+  ];
+
+  // Total steps: 0 (lang) + 1 (welcome) + permSteps.length + featureSteps.length + 1 (allSet)
+  const totalSteps = 2 + permSteps.length + featureSteps.length;
+  const permStartStep = 2;
+  const featureStartStep = 2 + permSteps.length;
+  const allSetStep = totalSteps;
+
+  // Poll permissions on permission steps
+  const refreshPerms = useCallback(async () => {
     try {
       const status = await checkPermissions();
-      setPermissions(status);
+      setPermStatus(status);
+
+      // Play sound when a permission gets newly granted
+      for (const perm of permSteps) {
+        const key = perm.key as string;
+        const wasGranted = prevGrantedRef.current[key];
+        const isNowGranted = status[perm.key as keyof PermissionStatus];
+        if (!wasGranted && isNowGranted) {
+          // Play success sound
+          try {
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.2);
+            setTimeout(() => ctx.close(), 300);
+          } catch {
+            // ignore audio errors
+          }
+        }
+        prevGrantedRef.current[key] = Boolean(isNowGranted);
+      }
     } catch {
-      setPermissions({ accessibility: false, screen_recording: false, microphone: false, automation: false, platform: "", arch: "", os_version: "", app_version: "" });
+      setPermStatus({ accessibility: false, screen_recording: false, microphone: false, automation: false, platform: "macos", arch: "", os_version: "", app_version: "" });
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [permSteps.length]);
 
-  // Poll permissions when on the permissions step
   useEffect(() => {
-    if (step !== 1) return;
-    refreshPermissions();
-    const interval = setInterval(refreshPermissions, 2000);
+    const isPermStep = step >= permStartStep && step < featureStartStep;
+    if (!isPermStep && step !== allSetStep) return;
+    refreshPerms();
+    const interval = setInterval(refreshPerms, 1000);
     return () => clearInterval(interval);
-  }, [step, refreshPermissions]);
+  }, [step, refreshPerms, permStartStep, featureStartStep, allSetStep]);
 
-  // Step 0: Language chooser
+  // Common wrapper styles
+  const wrapperStyle: React.CSSProperties = {
+    display: "flex", flexDirection: "column", alignItems: "center",
+    justifyContent: "center", height: "100vh", padding: 32,
+    textAlign: "center", background: "var(--bg-primary)", color: "var(--text-primary)",
+    fontFamily: isHebrew ? "var(--font-hebrew), var(--font-sans)" : "var(--font-sans)",
+    direction: dir,
+  };
+
+  // Step 0: Language
   if (step === 0) {
     return (
-      <div style={{
-        display: "flex", flexDirection: "column", alignItems: "center",
-        justifyContent: "center", height: "100vh", padding: "32px",
-        textAlign: "center", background: "var(--bg-primary)", color: "var(--text-primary)",
-      }}>
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M2 12h20" />
-          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-        </svg>
-
+      <div style={wrapperStyle}>
+        <img src={logoMark} width={56} height={56} alt="" style={{ marginBottom: 20 }} />
         <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, fontFamily: "var(--font-display)" }}>
           {t("onb.chooseLang")}
         </h1>
-        <p style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 4 }}>
-          {t("onb.chooseLangInlineEn")}
-        </p>
-        <p style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 32, fontFamily: "var(--font-hebrew)", direction: "rtl" }}>
-          {t("onb.chooseLangInlineHe")}
-        </p>
-
+        <p style={{ fontSize: 15, color: "var(--text-secondary)", marginBottom: 4 }}>Select your preferred language</p>
+        <p style={{ fontSize: 15, color: "var(--text-secondary)", marginBottom: 32, fontFamily: "var(--font-hebrew)", direction: "rtl" }}>בחר את השפה המועדפת עליך</p>
         <div style={{ display: "flex", gap: 16 }}>
-          {[
-            { code: "en" as const, label: "English", font: "var(--font-sans)" },
-            { code: "he" as const, label: "עברית", font: "var(--font-hebrew)" },
-          ].map((lang) => (
-            <button
-              key={lang.code}
-              className="btn"
-              onClick={() => { setLocale(lang.code); setStep(1); }}
-              style={{
-                padding: "20px 40px", fontSize: 18, fontWeight: 600,
-                border: "2px solid var(--border)", borderRadius: "var(--radius-lg)",
-                minWidth: 160, fontFamily: lang.font,
-              }}
-            >
+          {[{ code: "en" as const, label: "English" }, { code: "he" as const, label: "עברית" }].map(lang => (
+            <button key={lang.code} className="btn" onClick={() => { setLocale(lang.code); setStep(1); }}
+              style={{ padding: "20px 40px", fontSize: 18, fontWeight: 600, borderRadius: 12, minWidth: 160,
+                fontFamily: lang.code === "he" ? "var(--font-hebrew)" : "var(--font-sans)" }}>
               {lang.label}
             </button>
           ))}
@@ -83,183 +160,199 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     );
   }
 
-  const isMacOS = currentPlatform === "macos";
-  const isWindows = currentPlatform === "windows";
+  // Step 1: Welcome
+  if (step === 1) {
+    return (
+      <div style={wrapperStyle}>
+        <img src={logoMark} width={72} height={72} alt="" style={{ marginBottom: 20 }} />
+        <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 12, fontFamily: isHebrew ? "var(--font-hebrew)" : "var(--font-display)" }}>
+          {t("onb.welcome")}
+        </h1>
+        <p style={{ fontSize: 15, color: "var(--text-secondary)", maxWidth: 480, lineHeight: 1.7, marginBottom: 32 }}>
+          {t("onb.welcomeTagline")}
+        </p>
+        <button className="btn btn-primary" onClick={() => setStep(2)}
+          style={{ padding: "12px 32px", fontSize: 16, fontWeight: 600, borderRadius: 10 }}>
+          {isMacOS ? t("onb.letsSetup") : t("onb.next")}
+        </button>
+        <button className="btn" onClick={onComplete}
+          style={{ marginTop: 12, color: "var(--text-tertiary)", border: "none", background: "none" }}>
+          {t("onb.skip")}
+        </button>
+      </div>
+    );
+  }
 
-  // Step definitions — permissions step adapts to platform
-  const permStepTitle = isMacOS ? t("onb.permissions") : isWindows ? t("onb.windowsTips") : t("onb.permissions");
-  const permStepDesc = isMacOS ? t("onb.permissionsDesc") : isWindows ? t("onb.windowsTipsDesc") : t("onb.permissionsDesc");
-  const permStepDetail = isMacOS ? t("onb.permissionsHint") : isWindows ? t("onb.windowsTipsHint") : t("onb.permissionsHint");
+  // Permission steps (macOS only)
+  const permStepIndex = step - permStartStep;
+  if (isMacOS && permStepIndex >= 0 && permStepIndex < permSteps.length) {
+    const perm = permSteps[permStepIndex];
+    const isGranted = permStatus ? Boolean(permStatus[perm.key as keyof PermissionStatus]) : false;
+    const features = t(perm.featuresKey as Parameters<typeof t>[0]).split(", ");
 
-  const STEPS = [
-    { id: "permissions", icon: "shield", title: permStepTitle, description: permStepDesc, detail: permStepDetail },
-    { id: "layout", icon: "arrows", title: t("onb.layoutTitle"), description: t("onb.layoutDesc"), detail: t("onb.layoutDetail") },
-    { id: "clipboard", icon: "clipboard", title: t("onb.clipTitle"), description: t("onb.clipDesc"), detail: t("onb.clipDetail") },
-    { id: "snippets", icon: "code", title: t("onb.snippetTitle"), description: t("onb.snippetDesc"), detail: t("onb.snippetDetail") },
-    { id: "ai", icon: "sparkle", title: t("onb.aiTitle"), description: t("onb.aiDesc"), detail: t("onb.aiDetail") },
-    { id: "ready", icon: "check", title: t("onb.readyTitle"), description: t("onb.readyDesc"), detail: t("onb.readyDetail") },
-  ];
+    return (
+      <div style={wrapperStyle}>
+        <div style={{ marginBottom: 16, opacity: isGranted ? 0.5 : 1, transition: "opacity 0.3s" }}>
+          {perm.icon}
+        </div>
 
-  const stepIcons: Record<string, React.ReactNode> = {
-    shield: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4" stroke="var(--success)" strokeWidth="2"/></svg>,
-    arrows: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><path d="M2 7h20M22 7l-4-4M22 17H2M2 17l4 4"/></svg>,
-    clipboard: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V1.5A.5.5 0 019.5 1h5a.5.5 0 01.5.5V3"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg>,
-    code: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><path d="M7 4l10 8-10 8"/><line x1="3" y1="22" x2="21" y2="22"/></svg>,
-    sparkle: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="4" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="20"/><line x1="4" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="20" y2="12"/></svg>,
-    check: <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" strokeWidth="2"/></svg>,
-  };
+        {/* Status indicator */}
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "6px 16px", borderRadius: 20, marginBottom: 16,
+          background: isGranted ? "rgba(61,153,112,0.1)" : "rgba(191,70,70,0.08)",
+          border: `1px solid ${isGranted ? "var(--success)" : "var(--accent)"}`,
+          transition: "all 0.3s ease",
+        }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: isGranted ? "var(--success)" : "var(--accent)",
+            animation: isGranted ? "none" : "pulse 2s infinite",
+          }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: isGranted ? "var(--success)" : "var(--accent)" }}>
+            {isGranted ? t("onb.perm.grantedLabel") : t("onb.perm.notGranted")}
+          </span>
+        </div>
 
-  const currentIdx = step - 1;
-  const current = STEPS[currentIdx];
-  const isLast = currentIdx === STEPS.length - 1;
-  const dir = isHebrew ? "rtl" : "ltr";
+        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>{t(perm.titleKey as Parameters<typeof t>[0])}</h2>
+        <p style={{ fontSize: 14, color: "var(--text-secondary)", maxWidth: 420, lineHeight: 1.6, marginBottom: 16 }}>
+          {t(perm.whyKey as Parameters<typeof t>[0])}
+        </p>
 
-  // macOS: show accessibility permission with deeplink
-  // Windows: show tips instead (no permissions needed)
-  // Linux: show accessibility info
-  const permissionItems = isMacOS ? [
-    {
-      key: "accessibility" as const,
-      label: t("onb.perm.accessibility"),
-      desc: t("onb.perm.accessibilityDesc"),
-      url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-      icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="4" r="2"/><path d="M12 6v6m-4-2l4 2 4-2m-8 4l4 6 4-6"/></svg>,
-    },
-    {
-      key: "screen_recording" as const,
-      label: t("onb.perm.screenRecording"),
-      desc: t("onb.perm.screenRecordingDesc"),
-      url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
-      icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>,
-    },
-  ] : [];
+        {/* Feature list */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20, textAlign: isHebrew ? "right" : "left" }}>
+          {features.map((f, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+              <span style={{ color: "var(--success)", fontWeight: 700 }}>&#10003;</span> {f}
+            </div>
+          ))}
+        </div>
+
+        {perm.noteKey && (
+          <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 16, fontStyle: "italic" }}>
+            {t(perm.noteKey as Parameters<typeof t>[0])}
+          </p>
+        )}
+
+        {/* Grant button */}
+        {!isGranted && (
+          <button className="btn btn-primary" onClick={() => openUrl(perm.url)}
+            style={{ padding: "10px 28px", fontSize: 15, fontWeight: 600, borderRadius: 10, marginBottom: 12 }}>
+            {t("onb.perm.grantButton")}
+          </button>
+        )}
+
+        {/* Navigation */}
+        <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+          <button className="btn" onClick={() => setStep(step - 1)}>{t("onb.back")}</button>
+          {!isGranted && (
+            <button className="btn" onClick={() => { setSkippedPerms(s => new Set(s).add(perm.key)); setStep(step + 1); }}
+              style={{ color: "var(--text-tertiary)" }}>
+              {t("onb.perm.skipButton")}
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={() => setStep(step + 1)}
+            disabled={!isGranted && !skippedPerms.has(perm.key)}
+            style={{ opacity: isGranted ? 1 : 0.5 }}>
+            {t("onb.perm.continueButton")}
+          </button>
+        </div>
+
+        {/* Step dots */}
+        <div style={{ display: "flex", gap: 4, marginTop: 20 }}>
+          {Array.from({ length: totalSteps + 1 }).map((_, i) => (
+            <div key={i} style={{
+              width: i === step ? 20 : 6, height: 6, borderRadius: 3,
+              background: i === step ? "var(--accent)" : i < step ? "var(--success)" : "var(--border)",
+              transition: "all 0.3s",
+            }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Feature steps
+  const featureIndex = step - featureStartStep;
+  if (featureIndex >= 0 && featureIndex < featureSteps.length) {
+    const feat = featureSteps[featureIndex];
+    return (
+      <div style={wrapperStyle}>
+        <div style={{ marginBottom: 16 }}>{feat.icon}</div>
+        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 10, fontFamily: isHebrew ? "var(--font-hebrew)" : "var(--font-display)" }}>
+          {t(feat.titleKey as Parameters<typeof t>[0])}
+        </h2>
+        <p style={{ fontSize: 15, color: "var(--text-secondary)", maxWidth: 480, lineHeight: 1.6, marginBottom: 8 }}>
+          {t(feat.descKey as Parameters<typeof t>[0])}
+        </p>
+        <p style={{ fontSize: 13, color: "var(--text-tertiary)", marginBottom: 32 }}>
+          {t(feat.detailKey as Parameters<typeof t>[0])}
+        </p>
+
+        <div style={{ display: "flex", gap: 12 }}>
+          <button className="btn" onClick={() => setStep(step - 1)}>{t("onb.back")}</button>
+          <button className="btn" onClick={onComplete} style={{ color: "var(--text-tertiary)" }}>{t("onb.skip")}</button>
+          <button className="btn btn-primary" onClick={() => setStep(step + 1)}>{t("onb.next")}</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 4, marginTop: 20 }}>
+          {Array.from({ length: totalSteps + 1 }).map((_, i) => (
+            <div key={i} style={{
+              width: i === step ? 20 : 6, height: 6, borderRadius: 3,
+              background: i === step ? "var(--accent)" : i < step ? "var(--success)" : "var(--border)",
+              transition: "all 0.3s",
+            }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // All Set step (last)
+  const permChecklist = isMacOS ? permSteps.map(p => ({
+    label: t(p.titleKey as Parameters<typeof t>[0]),
+    granted: permStatus ? Boolean(permStatus[p.key as keyof PermissionStatus]) : false,
+    skipped: skippedPerms.has(p.key),
+  })) : [];
 
   return (
-    <div
-      dir={dir}
-      style={{
-        display: "flex", flexDirection: "column", alignItems: "center",
-        justifyContent: "center", height: "100vh", padding: "32px",
-        textAlign: "center", background: "var(--bg-primary)", color: "var(--text-primary)",
-        fontFamily: isHebrew ? "var(--font-hebrew), var(--font-sans)" : "var(--font-sans)",
-      }}
-    >
-      <div style={{ marginBottom: 16 }}>
-        {stepIcons[current.icon] || <div style={{ fontSize: 56 }}>{current.icon}</div>}
-      </div>
-
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 12, fontFamily: isHebrew ? "var(--font-hebrew)" : "var(--font-display)" }}>
-        {current.title}
-      </h1>
-
-      <p style={{ fontSize: 16, color: "var(--text-secondary)", maxWidth: 500, lineHeight: 1.6, marginBottom: 8 }}>
-        {current.description}
+    <div style={wrapperStyle}>
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="1.5" style={{ marginBottom: 16 }}>
+        <circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" strokeWidth="2"/>
+      </svg>
+      <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, fontFamily: isHebrew ? "var(--font-hebrew)" : "var(--font-display)" }}>
+        {t("onb.readyTitle")}
+      </h2>
+      <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 20 }}>
+        {t("onb.allSet.subtitle")}
       </p>
 
-      <p style={{ fontSize: 14, color: "var(--text-tertiary)", maxWidth: 450, marginBottom: 24 }}>
-        {current.detail}
-      </p>
-
-      {/* Permission cards — only on permissions step */}
-      {current.id === "permissions" && (
-        <div style={{ width: "100%", maxWidth: 420, marginBottom: 24, display: "flex", flexDirection: "column", gap: 10 }}>
-          {permissionItems.map((perm) => {
-            const granted = permissions?.[perm.key] ?? false;
-            return (
-              <div
-                key={perm.key}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "14px 16px", background: "var(--bg-secondary)",
-                  border: `1.5px solid ${granted ? "var(--success)" : "var(--accent)"}`,
-                  borderRadius: "var(--radius-lg)", textAlign: isHebrew ? "right" : "left",
-                }}
-              >
-                <div style={{ color: granted ? "var(--success)" : "var(--accent)", flexShrink: 0 }}>
-                  {perm.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>
-                    {perm.label}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", lineHeight: 1.4 }}>
-                    {perm.desc}
-                  </div>
-                </div>
-                <div style={{ flexShrink: 0 }}>
-                  {granted ? (
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 4,
-                      padding: "4px 10px", borderRadius: "var(--radius-full)",
-                      background: "rgba(61, 153, 112, 0.1)", color: "var(--success)",
-                      fontSize: 12, fontWeight: 600,
-                    }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12l5 5L20 7"/></svg>
-                      {t("onb.perm.granted")}
-                    </span>
-                  ) : (
-                    <button
-                      className="btn btn-sm"
-                      onClick={() => openUrl(perm.url)}
-                      style={{
-                        background: "var(--accent)", color: "white",
-                        border: "none", fontWeight: 600, fontSize: 12,
-                        padding: "5px 12px", borderRadius: "var(--radius-md)",
-                      }}
-                    >
-                      {t("onb.perm.grant")}
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Refresh button */}
-          <button
-            className="btn btn-sm"
-            onClick={refreshPermissions}
-            style={{ alignSelf: "center", marginTop: 4, color: "var(--text-tertiary)", fontSize: 12 }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 4 }}>
-              <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/>
-              <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/>
-            </svg>
-            {t("onb.perm.refresh")}
-          </button>
+      {/* Permission checklist */}
+      {permChecklist.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24, width: "100%", maxWidth: 360 }}>
+          {permChecklist.map((p, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
+              background: "var(--bg-secondary)", borderRadius: 8,
+              border: `1px solid ${p.granted ? "var(--success)" : "var(--warning, #D4940A)"}`,
+            }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: p.granted ? "var(--success)" : "#D4940A",
+              }} />
+              <span style={{ flex: 1, fontSize: 13, textAlign: isHebrew ? "right" : "left" }}>{p.label}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: p.granted ? "var(--success)" : "#D4940A" }}>
+                {p.granted ? t("onb.allSet.granted") : t("onb.allSet.skipped")}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Step indicators */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
-        {STEPS.map((_, i) => (
-          <div
-            key={i}
-            style={{
-              width: i === currentIdx ? 24 : 8, height: 8,
-              borderRadius: "var(--radius-full)",
-              background: i === currentIdx ? "var(--accent)" : "var(--border)",
-              transition: "all 0.3s ease",
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Navigation */}
       <div style={{ display: "flex", gap: 12 }}>
-        <button className="btn" onClick={() => setStep(step - 1)}>
-          {step === 1 ? t("set.language") : t("onb.back")}
-        </button>
-        {!isLast && (
-          <button className="btn" onClick={onComplete} style={{ color: "var(--text-tertiary)" }}>
-            {t("onb.skip")}
-          </button>
-        )}
-        <button
-          className="btn btn-primary"
-          onClick={() => isLast ? onComplete() : setStep(step + 1)}
-        >
-          {isLast ? t("onb.getStarted") : t("onb.next")}
+        <button className="btn btn-primary" onClick={onComplete}
+          style={{ padding: "12px 32px", fontSize: 16, fontWeight: 600, borderRadius: 10 }}>
+          {t("onb.getStarted")}
         </button>
       </div>
     </div>
